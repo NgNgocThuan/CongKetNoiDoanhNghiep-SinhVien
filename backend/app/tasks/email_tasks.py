@@ -1,7 +1,10 @@
-"""Tác vụ nền gửi email. Chạy trong FastAPI BackgroundTasks nên tự mở session riêng."""
+"""Tác vụ nền gửi email. Chạy trong FastAPI BackgroundTasks nên tự mở session riêng hoặc dùng session test."""
 import logging
 import smtplib
 from email.message import EmailMessage
+from typing import Optional
+
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
@@ -33,12 +36,22 @@ def _deliver(to_email: str, subject: str, body_html: str) -> None:
         smtp.send_message(msg)
 
 
-def send_email_task(email_log_id: int, body_html: str) -> None:
-    db = SessionLocal()
+def send_email_task(email_log_id: int, body_html: str, db_session: Optional[Session] = None) -> None:
+    session_to_close: Optional[Session] = None
+
     try:
+        # ƯU TIÊN KIỂM TRA db_session trước để tránh timeout TCP tới MariaDB trong test
+        if db_session is not None:
+            session_to_close = Session(bind=db_session.get_bind(), autoflush=False, expire_on_commit=False)
+            db = session_to_close
+        else:
+            session_to_close = SessionLocal()
+            db = session_to_close
+
         log = db.get(EmailLog, email_log_id)
         if log is None:
             return
+
         try:
             _deliver(log.recipient_email, log.subject, body_html)
             log.status = EmailStatus.SENT
@@ -50,5 +63,8 @@ def send_email_task(email_log_id: int, body_html: str) -> None:
             log.retry_count = (log.retry_count or 0) + 1
             logger.exception("Gửi email thất bại (email_log_id=%s)", email_log_id)
         db.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Lỗi trong tác vụ gửi email nền (email_log_id=%s): %s", email_log_id, exc)
     finally:
-        db.close()
+        if session_to_close is not None:
+            session_to_close.close()
