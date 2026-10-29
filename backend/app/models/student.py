@@ -79,6 +79,18 @@ class Student(TimestampMixin, Base):
     )
     cvs: Mapped[list["CV"]] = relationship(back_populates="student", cascade="all, delete-orphan")
     applications: Mapped[list["Application"]] = relationship(back_populates="student")
+    @property
+    def experience_months(self) -> int:
+        """Tổng số tháng kinh nghiệm từ student_experiences."""
+        from datetime import date
+        today = date.today()
+        total = 0
+        if hasattr(self, "experiences") and self.experiences:
+            for exp in self.experiences:
+                if getattr(exp, "start_date", None):
+                    end = getattr(exp, "end_date", None) or today
+                    total += max(0, (end.year - exp.start_date.year) * 12 + (end.month - exp.start_date.month))
+        return total
 
     __table_args__ = (
         Index("idx_students_faculty_major", "faculty_id", "major_id"),
