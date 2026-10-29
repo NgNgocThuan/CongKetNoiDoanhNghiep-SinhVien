@@ -9,6 +9,24 @@ import jwt
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedError
 
+# ---- Lưu trữ thu hồi token (in-memory) ----
+_revoked_token_hashes: set[str] = set()
+
+
+def revoke_token(raw_token: str) -> None:
+    """Đánh dấu thu hồi token vào bộ nhớ."""
+    _revoked_token_hashes.add(hash_token(raw_token))
+
+
+def is_token_revoked(raw_token: str) -> bool:
+    """Kiểm tra token đã bị thu hồi chưa."""
+    return hash_token(raw_token) in _revoked_token_hashes
+
+
+def clear_revoked_tokens() -> None:
+    """Xóa toàn bộ danh sách token đã bị thu hồi (phục vụ test)."""
+    _revoked_token_hashes.clear()
+
 
 # ---- Mật khẩu ----
 def hash_password(password: str) -> str:
@@ -27,7 +45,7 @@ def verify_password(password: str, password_hash: str | None) -> bool:
 # ---- JWT ----
 def _create_token(user_id: int, token_type: str, expires_delta: timedelta, extra: dict | None = None) -> str:
     now = datetime.now(timezone.utc)
-    payload = {"sub": str(user_id), "type": token_type, "iat": now, "exp": now + expires_delta}
+    payload = {"sub": str(user_id), "type": token_type, "iat": now, "exp": now + expires_delta, "jti": secrets.token_hex(12)}
     if extra:
         payload.update(extra)
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -52,6 +70,8 @@ def decode_token(token: str, expected_type: str = "access") -> dict:
         raise UnauthorizedError("Token không hợp lệ", code="TOKEN_INVALID") from exc
     if payload.get("type") != expected_type:
         raise UnauthorizedError("Loại token không đúng", code="TOKEN_INVALID")
+    if is_token_revoked(token):
+        raise UnauthorizedError("Phiên đăng nhập đã bị thu hồi", code="TOKEN_REVOKED")
     return payload
 
 
