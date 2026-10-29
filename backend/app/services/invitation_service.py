@@ -1,16 +1,17 @@
 """Nghiệp vụ: Lời mời ứng tuyển. Người phụ trách: Khôi."""
 from datetime import datetime, timedelta
 from typing import Optional
+
 from fastapi import BackgroundTasks
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.enums import InvitationStatus
-from app.core.exceptions import BadRequestError, NotFoundError, ConflictError
-from app.models import Invitation, Job, Student, Company
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.models import Company, Invitation, Job, Student
+from app.schemas.common import PageParams
 from app.services.email_service import queue_email
 from app.services.notification_service import create_notification
-from app.schemas.common import PageParams
 from app.utils.pagination import paginate
 
 

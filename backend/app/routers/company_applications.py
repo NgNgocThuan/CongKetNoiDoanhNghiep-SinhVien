@@ -1,11 +1,17 @@
 """Quản lý ứng viên (Kanban). Người phụ trách: Khôi."""
 from typing import Optional
+
 from fastapi import APIRouter, BackgroundTasks, Query
 
 from app.core.enums import ApplicationStatus
 from app.dependencies import CurrentCompany, DbSession, Pagination
+from app.schemas.applications import (
+    ApplicationDetail,
+    ApplicationRead,
+    ApplicationStatusUpdate,
+    StatusLogRead,
+)
 from app.schemas.common import Page
-from app.schemas.applications import ApplicationRead, ApplicationDetail, ApplicationStatusUpdate, StatusLogRead
 from app.services import company_application_service
 
 router = APIRouter(prefix="/company/applications", tags=["Company - Applications"])

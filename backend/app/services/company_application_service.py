@@ -1,16 +1,17 @@
 """Nghiệp vụ: Quản lý ứng viên (Kanban). Người phụ trách: Khôi."""
 from datetime import date
 from typing import Optional
+
 from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.enums import ApplicationStatus
-from app.core.exceptions import BadRequestError, NotFoundError, ConflictError
-from app.models import Application, ApplicationStatusLog, Company, Student, Job
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.models import Application, ApplicationStatusLog, Company, Job, Student
+from app.schemas.common import PageParams
 from app.services.email_service import queue_email
 from app.services.notification_service import create_notification
-from app.schemas.common import PageParams
 from app.utils.pagination import paginate
 
 # Quy tắc chuyển trạng thái hợp lệ

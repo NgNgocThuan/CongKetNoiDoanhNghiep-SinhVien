@@ -1,8 +1,9 @@
 """Schema Pydantic: Lời mời ứng tuyển. Người phụ trách: Khôi."""
 from datetime import datetime
 from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
-from app.core.enums import InvitationStatus
+
 from app.schemas.common import ORMModel
 
 

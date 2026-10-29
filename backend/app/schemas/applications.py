@@ -1,7 +1,9 @@
 """Schema Pydantic: Đơn ứng tuyển và chi tiết đơn."""
-from datetime import datetime, date
-from typing import Optional, List
+from datetime import date, datetime
+from typing import List, Optional
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 from app.core.enums import ApplicationStatus
 from app.schemas.common import ORMModel
 
