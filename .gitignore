@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+pytest-cache-files-*/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Môi trường & bí mật (KHÔNG commit)
+.env
+.env.*
+!.env.example
+
+# Dữ liệu chạy local
+backend/uploads/*
+!backend/uploads/.gitkeep
+*.log
+*.sqlite3
+*.db
+
+# Frontend
+node_modules/
+dist/
+build/
+.vite/
+
+# Credentials and temporary files
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+*.tmp
+*.bak
+*.sqlite
+.cache/
+tmp/
+temp/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
