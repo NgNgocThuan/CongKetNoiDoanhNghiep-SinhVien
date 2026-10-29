@@ -148,14 +148,19 @@ def set_default(db: Session, student: Student, cv_id: int) -> CV:
     return cv
 
 
-def _company_can_download(db: Session, company_id: int, cv_id: int) -> bool:
+def _company_snapshot(db: Session, company_id: int, cv_id: int) -> str | None:
     stmt = (
-        select(Application.id)
+        select(Application.cv_snapshot_url)
         .join(Job, Job.id == Application.job_id)
-        .where(Application.cv_id == cv_id, Job.company_id == company_id)
+        .where(
+            Application.cv_id == cv_id,
+            Application.cv_snapshot_url.is_not(None),
+            Job.company_id == company_id,
+        )
+        .order_by(Application.applied_at.desc(), Application.id.desc())
         .limit(1)
     )
-    return db.scalar(stmt) is not None
+    return db.scalar(stmt)
 
 
 def _write_online_cv(cv: CV) -> Path:
@@ -171,15 +176,28 @@ def get_downloadable_path(db: Session, cv_id: int, user: User) -> tuple[Path, st
     if cv is None:
         raise NotFoundError("Không tìm thấy CV")
 
-    allowed = False
+    company_snapshot = None
     if user.role == UserRole.STUDENT and user.student is not None:
-        allowed = cv.student_id == user.student.id
+        if cv.student_id != user.student.id:
+            raise NotFoundError("Không tìm thấy CV")
     elif user.role == UserRole.COMPANY and user.company is not None:
-        allowed = _company_can_download(db, user.company.id, cv.id)
-    if not allowed:
+        company_snapshot = _company_snapshot(db, user.company.id, cv.id)
+        if company_snapshot is None:
+            raise NotFoundError("Không tìm thấy CV")
+    else:
         raise NotFoundError("Không tìm thấy CV")
 
-    if cv.type == CVType.UPLOADED:
+    if company_snapshot is not None:
+        path = absolute_path(company_snapshot)
+        if path.suffix.lower() == ".pdf":
+            media_type = "application/pdf"
+        elif path.suffix.lower() == ".docx":
+            media_type = (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+        else:
+            media_type = "application/json"
+    elif cv.type == CVType.UPLOADED:
         if not cv.file_url:
             raise NotFoundError("File CV không còn tồn tại")
         path = absolute_path(cv.file_url)

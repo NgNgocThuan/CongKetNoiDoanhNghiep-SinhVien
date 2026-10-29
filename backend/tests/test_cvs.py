@@ -155,10 +155,14 @@ def test_company_download_requires_application(
             student_id=student.id,
             job_id=job.id,
             cv_id=cv_id,
+            cv_snapshot_url="applications/cv-snapshots/company-copy.pdf",
             current_status=ApplicationStatus.APPLIED,
         )
     )
+    snapshot = tmp_path / "applications" / "cv-snapshots" / "company-copy.pdf"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_bytes(b"%PDF-snapshot")
     db.commit()
     allowed = client.get(f"{BASE}/{cv_id}/download", headers=auth_headers(company_user))
     assert allowed.status_code == 200
-    assert allowed.content == b"%PDF-private"
+    assert allowed.content == b"%PDF-snapshot"
