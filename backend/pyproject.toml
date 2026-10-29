@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+# B008: FastAPI dùng Depends()/Query() làm giá trị mặc định tham số
+# E501: bỏ qua độ dài dòng (chuỗi tiếng Việt, comment)
+ignore = ["B008", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "scripts"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore:Dialect sqlite:sqlalchemy.exc.SAWarning"]

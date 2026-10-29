@@ -1,0 +1,460 @@
+﻿
+===== app\dependencies.py =====
+
+"""Dependency dùng chung cho routers: session DB, xác thực, phân quyền, phân trang.
+
+Cách dùng trong router:
+
+    @router.get("/me")
+    def me(student: CurrentStudent): ...
+
+    @router.post("/")
+    def create(data: Schema, db: DbSession, admin: AdminUser): ...
+"""
+from typing import Annotated
+
+from fastapi import Depends, Query
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.enums import UserRole, UserStatus
+from app.core.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
+from app.core.security import decode_token
+from app.models import Company, Student, User
+from app.schemas.common import PageParams
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/token")
+
+DbSession = Annotated[Session, Depends(get_db)]
+
+
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: DbSession) -> User:
+    payload = decode_token(token, expected_type="access")
+    user = db.get(User, int(payload["sub"]))
+    if user is None:
+        raise UnauthorizedError("Tài khoản không tồn tại")
+    if user.status == UserStatus.LOCKED:
+        raise ForbiddenError("Tài khoản đã bị khóa", code="ACCOUNT_LOCKED")
+    if user.status != UserStatus.ACTIVE:
+        raise ForbiddenError("Tài khoản chưa được kích hoạt hoặc chưa được duyệt", code="ACCOUNT_NOT_ACTIVE")
+    return user
+
+
+def require_roles(*roles: UserRole):
+    """Tạo dependency chỉ cho phép các role chỉ định."""
+
+    def checker(user: Annotated[User, Depends(get_current_user)]) -> User:
+        if user.role not in roles:
+            raise ForbiddenError("Bạn không có quyền thực hiện thao tác này")
+        return user
+
+    return checker
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+AdminUser = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
+StudentUser = Annotated[User, Depends(require_roles(UserRole.STUDENT))]
+CompanyUser = Annotated[User, Depends(require_roles(UserRole.COMPANY))]
+
+
+def get_current_student(user: StudentUser) -> Student:
+    if user.student is None:
+        raise NotFoundError("Tài khoản chưa có hồ sơ sinh viên")
+    return user.student
+
+
+def get_current_company(user: CompanyUser) -> Company:
+    if user.company is None:
+        raise NotFoundError("Tài khoản chưa có hồ sơ doanh nghiệp")
+    return user.company
+
+
+CurrentStudent = Annotated[Student, Depends(get_current_student)]
+CurrentCompany = Annotated[Company, Depends(get_current_company)]
+
+
+def pagination_params(
+    page: int = Query(1, ge=1, description="Trang, bắt đầu từ 1"),
+    size: int = Query(20, ge=1, le=100, description="Số dòng mỗi trang"),
+) -> PageParams:
+    return PageParams(page=page, size=size)
+
+
+Pagination = Annotated[PageParams, Depends(pagination_params)]
+
+===== app\core\exceptions.py =====
+
+"""Exception nghiệp vụ + handler trả JSON thống nhất.
+
+Service chỉ cần `raise NotFoundError("...")`, không tự tạo HTTPException.
+Response lỗi luôn có dạng:  {"error": {"code": "NOT_FOUND", "message": "..."}}
+"""
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+
+class AppException(Exception):
+    status_code: int = 400
+    code: str = "BAD_REQUEST"
+
+    def __init__(self, message: str = "", *, code: str | None = None, status_code: int | None = None):
+        super().__init__(message)
+        self.message = message or self.__class__.__name__
+        if code:
+            self.code = code
+        if status_code:
+            self.status_code = status_code
+
+
+class BadRequestError(AppException):
+    status_code, code = 400, "BAD_REQUEST"
+
+
+class UnauthorizedError(AppException):
+    status_code, code = 401, "UNAUTHORIZED"
+
+
+class ForbiddenError(AppException):
+    status_code, code = 403, "FORBIDDEN"
+
+
+class NotFoundError(AppException):
+    status_code, code = 404, "NOT_FOUND"
+
+
+class ConflictError(AppException):
+    status_code, code = 409, "CONFLICT"
+
+
+class UnprocessableError(AppException):
+    status_code, code = 422, "UNPROCESSABLE"
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppException)
+    async def app_exception_handler(_: Request, exc: AppException) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": exc.code, "message": exc.message}},
+        )
+
+===== app\core\enums.py =====
+
+"""Toàn bộ enum dùng chung. Giá trị phải khớp ENUM trong database/schema.sql."""
+from enum import Enum
+
+
+class StrEnum(str, Enum):
+    def __str__(self) -> str:
+        return self.value
+
+
+# ---- Auth ----
+class UserRole(StrEnum):
+    STUDENT = "STUDENT"
+    COMPANY = "COMPANY"
+    ADMIN = "ADMIN"
+
+
+class UserStatus(StrEnum):
+    PENDING_ACTIVATION = "PENDING_ACTIVATION"  # sinh viên import, chưa kích hoạt
+    PENDING_APPROVAL = "PENDING_APPROVAL"  # doanh nghiệp chờ trường duyệt
+    ACTIVE = "ACTIVE"
+    LOCKED = "LOCKED"
+
+
+# ---- Sinh viên ----
+class SkillLevel(StrEnum):
+    BEGINNER = "BEGINNER"
+    INTERMEDIATE = "INTERMEDIATE"
+    ADVANCED = "ADVANCED"
+    EXPERT = "EXPERT"
+
+
+class SkillSource(StrEnum):
+    SELF = "SELF"
+    CV_AI = "CV_AI"
+    SCHOOL = "SCHOOL"
+
+
+class CertificateSource(StrEnum):
+    SCHOOL = "SCHOOL"
+    SELF = "SELF"
+
+
+class AchievementType(StrEnum):
+    RESEARCH = "RESEARCH"
+    ACHIEVEMENT = "ACHIEVEMENT"
+    OTHER = "OTHER"
+
+
+class CVType(StrEnum):
+    UPLOADED = "UPLOADED"
+    ONLINE = "ONLINE"
+
+
+# ---- Doanh nghiệp ----
+class CompanySize(StrEnum):
+    S_1_10 = "1-10"
+    S_11_50 = "11-50"
+    S_51_200 = "51-200"
+    S_201_500 = "201-500"
+    S_501_1000 = "501-1000"
+    S_1000_PLUS = "1000+"
+
+
+class VerificationStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class CompanyDocType(StrEnum):
+    BUSINESS_LICENSE = "BUSINESS_LICENSE"
+    TAX_CERTIFICATE = "TAX_CERTIFICATE"
+    AUTHORIZATION_LETTER = "AUTHORIZATION_LETTER"
+    OTHER = "OTHER"
+
+
+# ---- Nhà trường / thực tập ----
+class ImportType(StrEnum):
+    STUDENTS = "STUDENTS"
+    TERM_STUDENTS = "TERM_STUDENTS"
+    SYNC = "SYNC"
+
+
+class TermStatus(StrEnum):
+    DRAFT = "DRAFT"
+    OPEN = "OPEN"
+    ONGOING = "ONGOING"
+    CLOSED = "CLOSED"
+
+
+class InternshipResultStatus(StrEnum):
+    PENDING = "PENDING"
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+
+
+# ---- Tuyển dụng ----
+class WorkMode(StrEnum):
+    ONSITE = "ONSITE"
+    REMOTE = "REMOTE"
+    HYBRID = "HYBRID"
+
+
+class JobStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    APPROVED = "APPROVED"  # chỉ trạng thái này mới hiển thị cho sinh viên
+    REJECTED = "REJECTED"
+    CLOSED = "CLOSED"
+    EXPIRED = "EXPIRED"
+
+
+class InvitationStatus(StrEnum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    DECLINED = "DECLINED"
+    EXPIRED = "EXPIRED"
+
+
+class ApplicationStatus(StrEnum):
+    APPLIED = "APPLIED"
+    SCREENING = "SCREENING"
+    SHORTLISTED = "SHORTLISTED"
+    INTERVIEW = "INTERVIEW"
+    OFFER = "OFFER"
+    HIRED = "HIRED"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+# ---- AI ----
+class AIPurpose(StrEnum):
+    PARSE_CV = "PARSE_CV"
+    PARSE_JOB = "PARSE_JOB"
+    MATCH_EXPLAIN = "MATCH_EXPLAIN"
+    OTHER = "OTHER"
+
+
+class AIRequestStatus(StrEnum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
+
+# ---- Thông báo / báo cáo ----
+class EmailStatus(StrEnum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+    FAILED = "FAILED"
+
+
+class ReportTargetType(StrEnum):
+    JOB = "JOB"
+    COMPANY = "COMPANY"
+    STUDENT = "STUDENT"
+
+
+class ReportStatus(StrEnum):
+    PENDING = "PENDING"
+    RESOLVED = "RESOLVED"
+    REJECTED = "REJECTED"
+
+===== app\utils\file_storage.py =====
+
+"""Lưu file upload (CV, giấy tờ doanh nghiệp) vào thư mục UPLOAD_DIR."""
+import uuid
+from pathlib import Path
+
+from fastapi import UploadFile
+
+from app.core.config import settings
+from app.core.exceptions import BadRequestError
+
+CV_EXTENSIONS = {".pdf", ".docx"}
+DOCUMENT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
+IMPORT_EXTENSIONS = {".xlsx", ".csv"}
+
+
+def save_upload(file: UploadFile, subdir: str, allowed_extensions: set[str]) -> str:
+    """Kiểm tra đuôi file + dung lượng, lưu với tên ngẫu nhiên, trả về đường dẫn tương đối.
+
+    Ví dụ: save_upload(file, "cvs/12", CV_EXTENSIONS) -> "cvs/12/3f9a....pdf"
+    """
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in allowed_extensions:
+        raise BadRequestError(f"Định dạng không được hỗ trợ. Chấp nhận: {', '.join(sorted(allowed_extensions))}")
+
+    data = file.file.read()
+    if len(data) > settings.MAX_UPLOAD_MB * 1024 * 1024:
+        raise BadRequestError(f"File vượt quá {settings.MAX_UPLOAD_MB}MB")
+
+    target_dir = Path(settings.UPLOAD_DIR) / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{uuid.uuid4().hex}{ext}"
+    (target_dir / name).write_bytes(data)
+    return f"{subdir}/{name}"
+
+
+def absolute_path(relative_path: str) -> Path:
+    return Path(settings.UPLOAD_DIR) / relative_path
+
+===== app\schemas\common.py =====
+
+"""Schema dùng chung: base ORM, phân trang, thông điệp."""
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field
+
+T = TypeVar("T")
+
+
+class ORMModel(BaseModel):
+    """Base cho schema đọc từ SQLAlchemy model (response)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PageParams(BaseModel):
+    page: int = Field(1, ge=1)
+    size: int = Field(20, ge=1, le=100)
+
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.size
+
+
+class Page(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    page: int
+    size: int
+    pages: int
+
+
+class Message(BaseModel):
+    message: str
+
+===== app\schemas\companies.py =====
+
+"""Schema Pydantic: Hồ sơ doanh nghiệp. Người phụ trách: TV4.
+
+Cần có:
+  - CompanyRead, CompanyUpdate, CompanyPublicRead, CompanyDocumentRead
+
+Khuôn mẫu: app/schemas/catalog.py  (XBase -> XCreate -> XUpdate(Optional) -> XRead(ORMModel)).
+Schema response kế thừa ORMModel (app.schemas.common).
+"""
+
+===== tests\conftest.py =====
+
+"""Fixture dùng chung: DB SQLite in-memory (không cần MariaDB để chạy test), client, tạo user, header đăng nhập."""
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.core.database import get_db
+from app.core.enums import UserRole, UserStatus
+from app.core.security import create_access_token, hash_password
+from app.main import app
+from app.models import Base, User
+
+
+@pytest.fixture()
+def db():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(engine)
+        engine.dispose()
+
+
+@pytest.fixture()
+def client(db):
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def make_user(db):
+    """Tạo user nhanh:  admin = make_user(UserRole.ADMIN)"""
+    counter = {"n": 0}
+
+    def _make(role: UserRole = UserRole.STUDENT, status: UserStatus = UserStatus.ACTIVE, email: str | None = None) -> User:
+        counter["n"] += 1
+        user = User(
+            email=email or f"user{counter['n']}@test.com",
+            password_hash=hash_password("Password@123"),
+            role=role,
+            status=status,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    return _make
+
+
+@pytest.fixture()
+def auth_headers():
+    """Header Bearer cho một user:  client.get(url, headers=auth_headers(user))"""
+
+    def _headers(user: User) -> dict[str, str]:
+        return {"Authorization": f"Bearer {create_access_token(user.id, user.role.value)}"}
+
+    return _headers

@@ -1,0 +1,24 @@
+# Chạy MariaDB cho môi trường dev:  docker compose up -d db
+services:
+  db:
+    image: mariadb:10.11
+    container_name: student_connect_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: student_connect
+      MARIADB_USER: app
+      MARIADB_PASSWORD: app
+    ports:
+      - "3306:3306"
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:
