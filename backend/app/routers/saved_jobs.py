@@ -1,15 +1,27 @@
-"""Việc làm yêu thích. Người phụ trách: TV3.
+"""Saved-job endpoints."""
+from fastapi import APIRouter, Response
 
-Endpoints cần làm:
-  - GET /saved-jobs — danh sách tin đã lưu (kèm thông tin tin), phân trang
-  - POST /saved-jobs/{job_id} — lưu (idempotent)
-  - DELETE /saved-jobs/{job_id} — bỏ lưu
-
-Khuôn mẫu: xem app/routers/catalog.py (router mỏng) + app/services/catalog_service.py (nghiệp vụ).
-Router chỉ khai báo endpoint + quyền + response_model, gọi service, KHÔNG truy vấn DB trực tiếp.
-"""
-from fastapi import APIRouter
+from app.dependencies import CurrentStudent, DbSession, Pagination
+from app.schemas.common import Page
+from app.schemas.saved_jobs import SavedJobRead
+from app.services import saved_job_service
 
 router = APIRouter(prefix="/saved-jobs", tags=["Saved Jobs"])
 
-# TODO(TV3): triển khai các endpoint ở docstring trên.
+
+@router.get("", response_model=Page[SavedJobRead], summary="Danh sách việc làm đã lưu")
+def list_saved_jobs(db: DbSession, student: CurrentStudent, pagination: Pagination):
+    return saved_job_service.list_saved_jobs(db, student, pagination)
+
+
+@router.post(
+    "/{job_id}", response_model=SavedJobRead, status_code=201, summary="Lưu việc làm"
+)
+def save_job(job_id: int, db: DbSession, student: CurrentStudent):
+    return saved_job_service.save_job(db, student, job_id)
+
+
+@router.delete("/{job_id}", status_code=204, summary="Bỏ lưu việc làm")
+def unsave_job(job_id: int, db: DbSession, student: CurrentStudent):
+    saved_job_service.unsave_job(db, student, job_id)
+    return Response(status_code=204)

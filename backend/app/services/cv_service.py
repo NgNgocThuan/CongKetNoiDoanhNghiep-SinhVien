@@ -10,7 +10,7 @@ from app.ai import cv_parser
 from app.core.config import settings
 from app.core.enums import CVType, UserRole
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.models import Application, CV, Job, Student, User
+from app.models import CV, Application, Job, Student, User
 from app.schemas.cvs import CVOnlineCreate, CVUpdate
 from app.utils.datetime_utils import utcnow
 from app.utils.file_storage import CV_EXTENSIONS, absolute_path, save_upload
