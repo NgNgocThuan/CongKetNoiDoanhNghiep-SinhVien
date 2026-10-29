@@ -1,11 +1,11 @@
 """Pydantic schemas for the student-owned profile API."""
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
-from app.core.enums import AchievementType, CertificateSource, SkillLevel, SkillSource
+from app.core.enums import AchievementType, CertificateSource, SkillLevel, SkillSource, TermStatus
 from app.schemas.common import ORMModel
 
 
@@ -237,7 +237,7 @@ class InternshipTermBrief(ORMModel):
     academic_year: str
     start_date: date
     end_date: date
-    status: Any
+    status: TermStatus
 
 
 class InternshipAssignmentRead(ORMModel):
