@@ -11,6 +11,7 @@ Mỗi sinh viên trong đợt có đúng một InternshipResult (tạo cùng lú
 Quy ước (xem catalog_service.py): nhận db: Session đầu tiên; lỗi nghiệp vụ -> raise các exception ở
 app/core/exceptions.py; service tự commit; không import app.routers.
 """
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -47,7 +48,7 @@ from app.services import notification_service
 from app.services.admin_student_service import canonical_row
 from app.utils.datetime_utils import utcnow
 from app.utils.pagination import paginate
-from app.utils.spreadsheet import read_rows
+from app.utils.spreadsheet import read_numbered_rows
 
 # Chuyển trạng thái hợp lệ của đợt: chỉ tiến một bước
 NEXT_STATUS = {
@@ -60,7 +61,9 @@ NEXT_STATUS = {
 # ---------------------------------------------------------------- Hàm cho module khác
 def is_student_in_term(db: Session, student_id: int, term_id: int) -> bool:
     """True nếu sinh viên nằm trong danh sách của đợt thực tập."""
-    stmt = select(TermStudent.id).where(TermStudent.term_id == term_id, TermStudent.student_id == student_id)
+    stmt = select(TermStudent.id).where(
+        TermStudent.term_id == term_id, TermStudent.student_id == student_id
+    )
     return db.scalar(stmt) is not None
 
 
@@ -104,7 +107,11 @@ def _ensure_can_view(db: Session, user: User, term_id: int) -> InternshipTerm:
     term = get_term(db, term_id)
     if user.role == UserRole.ADMIN:
         return term
-    if user.role == UserRole.STUDENT and user.student is not None and is_student_in_term(db, user.student.id, term_id):
+    if (
+        user.role == UserRole.STUDENT
+        and user.student is not None
+        and is_student_in_term(db, user.student.id, term_id)
+    ):
         return term
     raise ForbiddenError("Bạn không thuộc đợt thực tập này")
 
@@ -132,7 +139,9 @@ def list_terms(
         stmt = stmt.where(InternshipTerm.semester == semester)
     if status is not None:
         stmt = stmt.where(InternshipTerm.status == status)
-    page = paginate(db, stmt.order_by(InternshipTerm.start_date.desc(), InternshipTerm.id.desc()), params)
+    page = paginate(
+        db, stmt.order_by(InternshipTerm.start_date.desc(), InternshipTerm.id.desc()), params
+    )
     page["items"] = _term_rows(db, page["items"])
     return page
 
@@ -170,7 +179,9 @@ def update_term(db: Session, term_id: int, data: TermUpdate) -> dict:
 def change_status(db: Session, term_id: int, new_status: TermStatus) -> dict:
     term = get_term(db, term_id)
     if NEXT_STATUS.get(term.status) != new_status:
-        raise BadRequestError(f"Không thể chuyển đợt từ {term.status.value} sang {new_status.value}")
+        raise BadRequestError(
+            f"Không thể chuyển đợt từ {term.status.value} sang {new_status.value}"
+        )
     term.status = new_status
     db.commit()
     db.refresh(term)
@@ -192,7 +203,7 @@ def _add_to_term(db: Session, term: InternshipTerm, student: Student) -> None:
         user_id=student.user_id,
         type="TERM_ASSIGNED",
         title="Bạn đã được thêm vào đợt thực tập",
-        content=f"Nhà trường đã thêm bạn vào đợt \"{term.name}\" ({term.academic_year}, {term.semester}).",
+        content=f'Nhà trường đã thêm bạn vào đợt "{term.name}" ({term.academic_year}, {term.semester}).',
         ref_type="TERM",
         ref_id=term.id,
         commit=False,
@@ -216,21 +227,30 @@ def add_students(db: Session, term_id: int, student_ids: list[int]) -> dict:
         _add_to_term(db, term, students[student_id])
         added += 1
     db.commit()
-    return {"added": added, "already_in_term": already, "not_found_ids": [i for i in wanted if i not in students]}
+    return {
+        "added": added,
+        "already_in_term": already,
+        "not_found_ids": [i for i in wanted if i not in students],
+    }
 
 
-def import_term_students(db: Session, admin: User, term_id: int, filename: str, content: bytes) -> dict:
+def import_term_students(
+    db: Session, admin: User, term_id: int, filename: str, content: bytes
+) -> dict:
     """Thêm sinh viên vào đợt theo mã sinh viên từ Excel/CSV (cột student_code). Dòng lỗi được ghi vào báo cáo."""
     term = get_term(db, term_id)
     _ensure_editable(term)
-    rows = read_rows(filename, content)
+    rows = read_numbered_rows(filename, content)
     if not rows:
         raise BadRequestError("File không có dòng dữ liệu nào")
-    if "student_code" not in canonical_row(rows[0]):
+    if "student_code" not in canonical_row(rows[0][1]):
         raise BadRequestError("File thiếu cột bắt buộc: student_code")
 
     batch = ImportBatch(
-        type=ImportType.TERM_STUDENTS, file_name=filename, total_rows=len(rows), imported_by=admin.id
+        type=ImportType.TERM_STUDENTS,
+        file_name=filename,
+        total_rows=len(rows),
+        imported_by=admin.id,
     )
     db.add(batch)
     db.flush()
@@ -238,8 +258,10 @@ def import_term_students(db: Session, admin: User, term_id: int, filename: str, 
     existing = set(db.scalars(select(TermStudent.student_id).where(TermStudent.term_id == term_id)))
     errors: list[dict] = []
     added = 0
-    for index, raw in enumerate(rows):
-        row_number = index + 2
+    for row_number, raw in rows:
+        if "_import_error" in raw:
+            errors.append({"row": row_number, "key": None, "message": raw["_import_error"]})
+            continue
         code = canonical_row(raw).get("student_code") or None
         if not code:
             errors.append({"row": row_number, "key": None, "message": "Thiếu mã sinh viên"})
@@ -279,19 +301,28 @@ def remove_student(db: Session, term_id: int, student_id: int) -> None:
     term = get_term(db, term_id)
     _ensure_editable(term)
     term_student = db.scalar(
-        select(TermStudent).where(TermStudent.term_id == term_id, TermStudent.student_id == student_id)
+        select(TermStudent).where(
+            TermStudent.term_id == term_id, TermStudent.student_id == student_id
+        )
     )
     if term_student is None:
         raise NotFoundError("Sinh viên không thuộc đợt thực tập này")
     result = term_student.result
-    if result is not None and (result.result != InternshipResultStatus.PENDING or result.company_evaluation):
+    if result is not None and (
+        result.result != InternshipResultStatus.PENDING or result.company_evaluation
+    ):
         raise ConflictError("Sinh viên đã có đánh giá/kết quả thực tập, không thể xóa khỏi đợt")
     db.delete(term_student)
     db.commit()
 
 
 def list_term_students(
-    db: Session, term_id: int, params: PageParams, *, q: str | None = None, lecturer_id: int | None = None
+    db: Session,
+    term_id: int,
+    params: PageParams,
+    *,
+    q: str | None = None,
+    lecturer_id: int | None = None,
 ) -> dict:
     get_term(db, term_id)
     stmt = (
@@ -321,7 +352,9 @@ def list_term_students(
     return page
 
 
-def assign_lecturers(db: Session, term_id: int, lecturer_id: int | None, student_ids: list[int]) -> dict:
+def assign_lecturers(
+    db: Session, term_id: int, lecturer_id: int | None, student_ids: list[int]
+) -> dict:
     """Phân công một giảng viên hướng dẫn cho nhiều sinh viên của đợt (lecturer_id=None: bỏ phân công)."""
     term = get_term(db, term_id)
     _ensure_editable(term)
@@ -335,7 +368,9 @@ def assign_lecturers(db: Session, term_id: int, lecturer_id: int | None, student
     members = {
         ts.student_id: ts
         for ts in db.scalars(
-            select(TermStudent).where(TermStudent.term_id == term_id, TermStudent.student_id.in_(wanted))
+            select(TermStudent).where(
+                TermStudent.term_id == term_id, TermStudent.student_id.in_(wanted)
+            )
         )
     }
     for term_student in members.values():
@@ -350,7 +385,7 @@ def list_term_jobs(db: Session, user: User, term_id: int, params: PageParams) ->
     _ensure_can_view(db, user, term_id)
     stmt = select(Job).where(Job.term_id == term_id).options(selectinload(Job.company))
     if user.role != UserRole.ADMIN:
-        stmt = stmt.where(Job.status == JobStatus.APPROVED)
+        stmt = stmt.where(Job.status == JobStatus.APPROVED, Job.deadline >= utcnow().date())
     page = paginate(db, stmt.order_by(Job.id.desc()), params)
     page["items"] = [
         {
@@ -373,7 +408,9 @@ def _result_rows(db: Session, results: list[InternshipResult]) -> list[dict]:
     company_ids = {r.company_id for r in results if r.company_id}
     companies = {}
     if company_ids:
-        companies = {c.id: c.name for c in db.scalars(select(Company).where(Company.id.in_(company_ids)))}
+        companies = {
+            c.id: c.name for c in db.scalars(select(Company).where(Company.id.in_(company_ids)))
+        }
     rows = []
     for r in results:
         ts = r.term_student
@@ -443,7 +480,9 @@ def _ensure_not_confirmed(result: InternshipResult) -> None:
         raise ConflictError("Kết quả đã được nhà trường xác nhận, không thể thay đổi")
 
 
-def submit_company_evaluation(db: Session, company: Company, result_id: int, data: CompanyEvaluation) -> dict:
+def submit_company_evaluation(
+    db: Session, company: Company, result_id: int, data: CompanyEvaluation
+) -> dict:
     """Doanh nghiệp gửi đánh giá. Chỉ công ty đã nhận sinh viên (đơn HIRED vào tin của công ty thuộc đợt này) mới được gửi."""
     result = _get_result(db, result_id)
     term_student = result.term_student
@@ -474,7 +513,9 @@ def submit_company_evaluation(db: Session, company: Company, result_id: int, dat
     result.evaluated_at = utcnow()
 
     student = term_student.student
-    admins = db.scalars(select(User).where(User.role == UserRole.ADMIN, User.status == UserStatus.ACTIVE)).all()
+    admins = db.scalars(
+        select(User).where(User.role == UserRole.ADMIN, User.status == UserStatus.ACTIVE)
+    ).all()
     for admin in admins:
         notification_service.create_notification(
             db,

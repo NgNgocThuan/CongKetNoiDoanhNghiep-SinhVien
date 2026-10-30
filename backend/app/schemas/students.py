@@ -1,12 +1,14 @@
 """Pydantic schemas for the student-owned profile API."""
+
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.core.enums import AchievementType, CertificateSource, SkillLevel, SkillSource, TermStatus
 from app.schemas.common import ORMModel
+from app.schemas.school_common import SchoolUpdate
 
 
 class FacultyBrief(ORMModel):
@@ -55,7 +57,13 @@ class ProfileRead(ORMModel):
     updated_at: datetime
 
 
-class ProfileUpdate(BaseModel):
+class ProfileUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = (
+        "is_open_to_work",
+        "show_gpa",
+        "show_contact",
+        "show_achievements",
+    )
     model_config = ConfigDict(str_strip_whitespace=True)
 
     avatar_url: Optional[str] = Field(default=None, max_length=500)
@@ -109,7 +117,8 @@ class ExperienceCreate(ExperienceBase):
     pass
 
 
-class ExperienceUpdate(BaseModel):
+class ExperienceUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("company_name", "position")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     company_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
@@ -146,7 +155,8 @@ class ProjectCreate(ProjectBase):
     pass
 
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("name",)
     model_config = ConfigDict(str_strip_whitespace=True)
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
@@ -183,7 +193,8 @@ class CertificateCreate(CertificateBase):
     pass
 
 
-class CertificateUpdate(BaseModel):
+class CertificateUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("name",)
     model_config = ConfigDict(str_strip_whitespace=True)
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)

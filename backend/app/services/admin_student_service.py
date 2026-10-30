@@ -13,6 +13,7 @@ cũng được nhận, xem HEADER_ALIASES.
 Quy ước (xem catalog_service.py): nhận db: Session đầu tiên; lỗi nghiệp vụ -> raise các exception ở
 app/core/exceptions.py; service tự commit; không import app.routers.
 """
+
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -43,7 +44,7 @@ from app.schemas.common import PageParams
 from app.services import email_service, notification_service
 from app.utils.datetime_utils import utcnow
 from app.utils.pagination import paginate
-from app.utils.spreadsheet import read_rows
+from app.utils.spreadsheet import read_numbered_rows
 
 ACTIVATION_TOKEN_EXPIRE_DAYS = 7
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -113,7 +114,9 @@ def list_students(
     stmt = (
         select(Student)
         .join(User, Student.user_id == User.id)
-        .options(selectinload(Student.user), selectinload(Student.faculty), selectinload(Student.major))
+        .options(
+            selectinload(Student.user), selectinload(Student.faculty), selectinload(Student.major)
+        )
     )
     if faculty_id is not None:
         stmt = stmt.where(Student.faculty_id == faculty_id)
@@ -126,7 +129,11 @@ def list_students(
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(
-            or_(Student.student_code.ilike(like), Student.full_name.ilike(like), User.email.ilike(like))
+            or_(
+                Student.student_code.ilike(like),
+                Student.full_name.ilike(like),
+                User.email.ilike(like),
+            )
         )
     page = paginate(db, stmt.order_by(Student.student_code), params)
     page["items"] = [_student_row(s) for s in page["items"]]
@@ -267,7 +274,7 @@ def verify_certificate(db: Session, certificate_id: int, admin: User) -> Student
             user_id=student.user_id,
             type="CERTIFICATE_VERIFIED",
             title="Chứng chỉ đã được nhà trường xác thực",
-            content=f"Chứng chỉ \"{cert.name}\" của bạn đã được xác thực.",
+            content=f'Chứng chỉ "{cert.name}" của bạn đã được xác thực.',
             ref_type="CERTIFICATE",
             ref_id=cert.id,
         )
@@ -276,7 +283,9 @@ def verify_certificate(db: Session, certificate_id: int, admin: User) -> Student
 
 # ---------------------------------------------------------------- Đồng bộ (chưa có nguồn)
 def sync_students(db: Session) -> None:
-    raise AppException("Chưa có nguồn đồng bộ từ hệ thống đào tạo", code="NOT_IMPLEMENTED", status_code=501)
+    raise AppException(
+        "Chưa có nguồn đồng bộ từ hệ thống đào tạo", code="NOT_IMPLEMENTED", status_code=501
+    )
 
 
 # ---------------------------------------------------------------- Import sinh viên
@@ -311,7 +320,7 @@ def _parse_gpa(value: str) -> Decimal:
         gpa = Decimal(value.replace(",", "."))
     except InvalidOperation:
         raise _RowError(f"GPA '{value}' không phải số") from None
-    if not Decimal(0) <= gpa <= Decimal(4):
+    if not gpa.is_finite() or not Decimal(0) <= gpa <= Decimal(4):
         raise _RowError(f"GPA {value} ngoài khoảng 0-4")
     return gpa.quantize(Decimal("0.01"))
 
@@ -342,7 +351,9 @@ class _Lookups:
         return candidates[0]
 
 
-def _apply_row(db: Session, fields: dict[str, str], lookups: _Lookups, batch: ImportBatch) -> tuple[str, Student]:
+def _apply_row(
+    db: Session, fields: dict[str, str], lookups: _Lookups, batch: ImportBatch
+) -> tuple[str, Student]:
     """Tạo mới hoặc cập nhật một sinh viên. Raise _RowError nếu dữ liệu sai."""
     code = fields.get("student_code", "")
     student = db.scalar(select(Student).where(func.lower(Student.student_code) == code.lower()))
@@ -396,7 +407,9 @@ def _apply_row(db: Session, fields: dict[str, str], lookups: _Lookups, batch: Im
     if db.scalar(select(User.id).where(func.lower(User.email) == email)) is not None:
         raise _RowError(f"Email '{fields['email']}' đã được dùng bởi tài khoản khác")
 
-    user = User(email=email, password_hash=None, role=UserRole.STUDENT, status=UserStatus.PENDING_ACTIVATION)
+    user = User(
+        email=email, password_hash=None, role=UserRole.STUDENT, status=UserStatus.PENDING_ACTIVATION
+    )
     db.add(user)
     db.flush()
     student = Student(user_id=user.id, student_code=code, import_batch_id=batch.id, **values)
@@ -411,15 +424,17 @@ def import_students(
     db: Session, background_tasks: BackgroundTasks, admin: User, filename: str, content: bytes
 ) -> dict:
     """Import sinh viên từ Excel/CSV. Một dòng lỗi chỉ bị bỏ qua và ghi vào error_report, các dòng còn lại vẫn lưu."""
-    rows = read_rows(filename, content)
+    rows = read_numbered_rows(filename, content)
     if not rows:
         raise BadRequestError("File không có dòng dữ liệu nào")
-    present = set(canonical_row(rows[0]))
+    present = set(canonical_row(rows[0][1]))
     missing_columns = [f for f in REQUIRED_FIELDS if f not in present]
     if missing_columns:
         raise BadRequestError(f"File thiếu cột bắt buộc: {', '.join(missing_columns)}")
 
-    batch = ImportBatch(type=ImportType.STUDENTS, file_name=filename, total_rows=len(rows), imported_by=admin.id)
+    batch = ImportBatch(
+        type=ImportType.STUDENTS, file_name=filename, total_rows=len(rows), imported_by=admin.id
+    )
     db.add(batch)
     db.flush()
 
@@ -427,11 +442,12 @@ def import_students(
     errors: list[dict] = []
     created: list[Student] = []
     updated = 0
-    for index, raw in enumerate(rows):
-        row_number = index + 2  # dòng 1 là tiêu đề
+    for row_number, raw in rows:  # dòng 1 là tiêu đề
         fields = canonical_row(raw)
         code = fields.get("student_code") or None
         try:
+            if "_import_error" in raw:
+                raise _RowError(raw["_import_error"])
             if not code:
                 raise _RowError("Thiếu mã sinh viên")
             with db.begin_nested():
@@ -440,7 +456,9 @@ def import_students(
             errors.append({"row": row_number, "key": code, "message": str(exc)})
             continue
         except IntegrityError:
-            errors.append({"row": row_number, "key": code, "message": "Dữ liệu trùng hoặc vi phạm ràng buộc"})
+            errors.append(
+                {"row": row_number, "key": code, "message": "Dữ liệu trùng hoặc vi phạm ràng buộc"}
+            )
             continue
         if outcome == "created":
             created.append(student)

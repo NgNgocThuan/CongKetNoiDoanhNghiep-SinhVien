@@ -1,5 +1,6 @@
 """Nghiệp vụ: Lời mời ứng tuyển. Người phụ trách: Khôi."""
-from datetime import datetime, timedelta
+
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import BackgroundTasks
@@ -12,6 +13,7 @@ from app.models import Company, Invitation, Job, Student
 from app.schemas.common import PageParams
 from app.services.email_service import queue_email
 from app.services.notification_service import create_notification
+from app.utils.datetime_utils import utcnow
 from app.utils.pagination import paginate
 
 
@@ -35,16 +37,25 @@ def send_invitation(
         raise NotFoundError("Không tìm thấy hồ sơ sinh viên")
 
     # Kiểm tra profile và trạng thái tìm việc
-    if not student.profile or not student.profile.show_contact and not getattr(student.profile, "is_open_to_work", True):
+    if (
+        not student.profile
+        or not student.profile.show_contact
+        and not getattr(student.profile, "is_open_to_work", True)
+    ):
         # Kiểm tra chuẩn biến is_open_to_work nằm trong StudentProfile
         pass
 
     if not student.profile or not getattr(student.profile, "is_open_to_work", False):
         raise BadRequestError("Sinh viên hiện không bật trạng thái tìm việc (is_open_to_work)")
 
-    existing = db.scalar(select(Invitation).where(Invitation.job_id == job_id, Invitation.student_id == student_id))
+    existing = db.scalar(
+        select(Invitation).where(Invitation.job_id == job_id, Invitation.student_id == student_id)
+    )
     if existing:
-        raise ConflictError("Đã gửi lời mời cho sinh viên này với tin tuyển dụng này rồi", code="DUPLICATE_INVITATION")
+        raise ConflictError(
+            "Đã gửi lời mời cho sinh viên này với tin tuyển dụng này rồi",
+            code="DUPLICATE_INVITATION",
+        )
 
     invitation = Invitation(
         job_id=job_id,
@@ -91,12 +102,20 @@ def send_invitation(
 
 
 def list_for_company(db: Session, company: Company, params: PageParams) -> dict:
-    stmt = select(Invitation).where(Invitation.company_id == company.id).order_by(Invitation.created_at.desc())
+    stmt = (
+        select(Invitation)
+        .where(Invitation.company_id == company.id)
+        .order_by(Invitation.created_at.desc())
+    )
     return paginate(db, stmt, params)
 
 
 def list_for_student(db: Session, student: Student, params: PageParams) -> dict:
-    stmt = select(Invitation).where(Invitation.student_id == student.id).order_by(Invitation.created_at.desc())
+    stmt = (
+        select(Invitation)
+        .where(Invitation.student_id == student.id)
+        .order_by(Invitation.created_at.desc())
+    )
     return paginate(db, stmt, params)
 
 
@@ -109,7 +128,7 @@ def decline(db: Session, student: Student, invitation_id: int) -> Invitation:
         raise ConflictError("Lời mời đã được xử lý trước đó", code="INVITATION_PROCESSED")
 
     invitation.status = InvitationStatus.DECLINED
-    invitation.responded_at = datetime.utcnow()
+    invitation.responded_at = utcnow()
     db.commit()
     db.refresh(invitation)
     return invitation
@@ -117,7 +136,7 @@ def decline(db: Session, student: Student, invitation_id: int) -> Invitation:
 
 def expire_old_invitations(db: Session) -> int:
     """Hết hạn các lời mời cũ quá hạn (nếu cần chạy định kỳ)."""
-    threshold = datetime.utcnow() - timedelta(days=30)
+    threshold = utcnow() - timedelta(days=30)
     result = db.execute(
         update(Invitation)
         .where(Invitation.status == InvitationStatus.PENDING, Invitation.created_at < threshold)

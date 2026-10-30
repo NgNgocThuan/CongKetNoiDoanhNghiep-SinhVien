@@ -14,6 +14,7 @@ Endpoints (chỉ admin):
 Khuôn mẫu: xem app/routers/catalog.py (router mỏng) + app/services/catalog_service.py (nghiệp vụ).
 Router chỉ khai báo endpoint + quyền + response_model, gọi service, KHÔNG truy vấn DB trực tiếp.
 """
+
 from fastapi import APIRouter, BackgroundTasks, File, Response, UploadFile
 
 from app.core.config import settings
@@ -72,24 +73,34 @@ def import_students(
     admin: AdminUser,
     file: UploadFile = File(description="File .xlsx hoặc .csv, dòng đầu là tiêu đề cột"),
 ):
-    content = file.file.read()
+    content = file.file.read(settings.MAX_UPLOAD_MB * 1024 * 1024 + 1)
     if len(content) > settings.MAX_UPLOAD_MB * 1024 * 1024:
         raise BadRequestError(f"File vượt quá {settings.MAX_UPLOAD_MB}MB")
-    return admin_student_service.import_students(db, background_tasks, admin, file.filename or "", content)
+    return admin_student_service.import_students(
+        db, background_tasks, admin, file.filename or "", content
+    )
 
 
 @router.get("/imports", response_model=Page[ImportBatchRead], summary="Lịch sử import")
-def list_imports(db: DbSession, _: AdminUser, pagination: Pagination, type: ImportType | None = None):
+def list_imports(
+    db: DbSession, _: AdminUser, pagination: Pagination, type: ImportType | None = None
+):
     return admin_student_service.list_import_batches(db, pagination, type=type)
 
 
-@router.get("/imports/{batch_id}", response_model=ImportBatchDetail, summary="Chi tiết lần import và các dòng lỗi")
+@router.get(
+    "/imports/{batch_id}",
+    response_model=ImportBatchDetail,
+    summary="Chi tiết lần import và các dòng lỗi",
+)
 def get_import(batch_id: int, db: DbSession, _: AdminUser):
     return admin_student_service.get_import_batch(db, batch_id)
 
 
 @router.post(
-    "/certificates/{certificate_id}/verify", response_model=CertificateRead, summary="Xác thực chứng chỉ tự khai"
+    "/certificates/{certificate_id}/verify",
+    response_model=CertificateRead,
+    summary="Xác thực chứng chỉ tự khai",
 )
 def verify_certificate(certificate_id: int, db: DbSession, admin: AdminUser):
     return admin_student_service.verify_certificate(db, certificate_id, admin)
@@ -101,7 +112,11 @@ def sync_students(db: DbSession, _: AdminUser):
 
 
 # ---- Theo từng sinh viên
-@router.get("/{student_id}", response_model=AdminStudentDetail, summary="Chi tiết sinh viên (tách dữ liệu trường / tự khai)")
+@router.get(
+    "/{student_id}",
+    response_model=AdminStudentDetail,
+    summary="Chi tiết sinh viên (tách dữ liệu trường / tự khai)",
+)
 def get_student(student_id: int, db: DbSession, _: AdminUser):
     return admin_student_service.get_student_detail(db, student_id)
 
@@ -111,7 +126,11 @@ def update_student(student_id: int, data: StudentAcademicUpdate, db: DbSession, 
     return admin_student_service.update_academic_data(db, student_id, data)
 
 
-@router.post("/{student_id}/issue-account", response_model=Message, summary="Cấp / gửi lại email kích hoạt tài khoản")
+@router.post(
+    "/{student_id}/issue-account",
+    response_model=Message,
+    summary="Cấp / gửi lại email kích hoạt tài khoản",
+)
 def issue_account(student_id: int, background_tasks: BackgroundTasks, db: DbSession, _: AdminUser):
     admin_student_service.issue_account(db, background_tasks, student_id)
     return Message(message="Đã gửi email kích hoạt")
@@ -127,7 +146,9 @@ def add_achievement(student_id: int, data: AchievementCreate, db: DbSession, _: 
     return admin_student_service.add_achievement(db, student_id, data)
 
 
-@router.delete("/{student_id}/achievements/{achievement_id}", status_code=204, summary="Xóa thành tích")
+@router.delete(
+    "/{student_id}/achievements/{achievement_id}", status_code=204, summary="Xóa thành tích"
+)
 def delete_achievement(student_id: int, achievement_id: int, db: DbSession, _: AdminUser):
     admin_student_service.delete_achievement(db, student_id, achievement_id)
     return Response(status_code=204)

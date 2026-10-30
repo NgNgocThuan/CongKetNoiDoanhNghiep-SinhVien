@@ -1,11 +1,13 @@
 """Pydantic schemas for CV management."""
+
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.enums import CVType
 from app.schemas.common import ORMModel
+from app.schemas.school_common import SchoolUpdate
 
 
 class CVOnlineCreate(BaseModel):
@@ -18,7 +20,8 @@ class CVOnlineCreate(BaseModel):
     )
 
 
-class CVUpdate(BaseModel):
+class CVUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("title",)
     model_config = ConfigDict(str_strip_whitespace=True)
 
     title: Optional[str] = Field(default=None, min_length=1, max_length=255)

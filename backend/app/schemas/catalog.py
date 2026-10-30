@@ -3,11 +3,13 @@
 Khuôn: XBase (trường chung) -> XCreate -> XUpdate (tất cả Optional) -> XRead (ORMModel, có id).
 Faculty, Major, Industry, JobType, Skill, SkillAlias.
 """
-from typing import Optional
+
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import ORMModel
+from app.schemas.school_common import SchoolUpdate
 
 
 class FacultyBase(BaseModel):
@@ -21,7 +23,8 @@ class FacultyCreate(FacultyBase):
     pass
 
 
-class FacultyUpdate(BaseModel):
+class FacultyUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("code", "name", "is_active")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     code: Optional[str] = Field(default=None, min_length=1, max_length=30)
@@ -47,7 +50,8 @@ class MajorCreate(MajorBase):
     pass
 
 
-class MajorUpdate(BaseModel):
+class MajorUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("code", "name", "faculty_id", "is_active")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     faculty_id: Optional[int] = None
@@ -72,7 +76,8 @@ class IndustryCreate(IndustryBase):
     pass
 
 
-class IndustryUpdate(BaseModel):
+class IndustryUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("name", "is_active")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
@@ -96,7 +101,8 @@ class JobTypeCreate(JobTypeBase):
     pass
 
 
-class JobTypeUpdate(BaseModel):
+class JobTypeUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("code", "name", "is_active")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     code: Optional[str] = Field(default=None, min_length=1, max_length=30)
@@ -121,7 +127,8 @@ class SkillCreate(SkillBase):
     pass
 
 
-class SkillUpdate(BaseModel):
+class SkillUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("name", "is_active")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)

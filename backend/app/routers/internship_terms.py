@@ -17,6 +17,7 @@ Endpoints:
 Khuôn mẫu: xem app/routers/catalog.py (router mỏng) + app/services/catalog_service.py (nghiệp vụ).
 Router chỉ khai báo endpoint + quyền + response_model, gọi service, KHÔNG truy vấn DB trực tiếp.
 """
+
 from fastapi import APIRouter, File, Response, UploadFile
 
 from app.core.config import settings
@@ -52,7 +53,9 @@ router = APIRouter(prefix="/internship-terms", tags=["Internship Terms"])
     response_model=InternshipResultRead,
     summary="Doanh nghiệp gửi đánh giá sinh viên thực tập",
 )
-def submit_evaluation(result_id: int, data: CompanyEvaluation, db: DbSession, company: CurrentCompany):
+def submit_evaluation(
+    result_id: int, data: CompanyEvaluation, db: DbSession, company: CurrentCompany
+):
     return internship_service.submit_company_evaluation(db, company, result_id, data)
 
 
@@ -104,13 +107,21 @@ def update_term(term_id: int, data: TermUpdate, db: DbSession, _: AdminUser):
     return internship_service.update_term(db, term_id, data)
 
 
-@router.post("/{term_id}/status", response_model=TermRead, summary="Chuyển trạng thái đợt (DRAFT→OPEN→ONGOING→CLOSED)")
+@router.post(
+    "/{term_id}/status",
+    response_model=TermRead,
+    summary="Chuyển trạng thái đợt (DRAFT→OPEN→ONGOING→CLOSED)",
+)
 def change_term_status(term_id: int, data: TermStatusChange, db: DbSession, _: AdminUser):
     return internship_service.change_status(db, term_id, data.status)
 
 
 # ---------------------------------------------------------------- Sinh viên trong đợt
-@router.get("/{term_id}/students", response_model=Page[TermStudentRead], summary="Danh sách sinh viên của đợt")
+@router.get(
+    "/{term_id}/students",
+    response_model=Page[TermStudentRead],
+    summary="Danh sách sinh viên của đợt",
+)
 def list_term_students(
     term_id: int,
     db: DbSession,
@@ -119,11 +130,16 @@ def list_term_students(
     q: str | None = None,
     lecturer_id: int | None = None,
 ):
-    return internship_service.list_term_students(db, term_id, pagination, q=q, lecturer_id=lecturer_id)
+    return internship_service.list_term_students(
+        db, term_id, pagination, q=q, lecturer_id=lecturer_id
+    )
 
 
 @router.post(
-    "/{term_id}/students", response_model=TermStudentAddResult, status_code=201, summary="Thêm sinh viên vào đợt"
+    "/{term_id}/students",
+    response_model=TermStudentAddResult,
+    status_code=201,
+    summary="Thêm sinh viên vào đợt",
 )
 def add_term_students(term_id: int, data: TermStudentAdd, db: DbSession, _: AdminUser):
     return internship_service.add_students(db, term_id, data.student_ids)
@@ -141,13 +157,15 @@ def import_term_students(
     admin: AdminUser,
     file: UploadFile = File(description="File .xlsx hoặc .csv có cột student_code"),
 ):
-    content = file.file.read()
+    content = file.file.read(settings.MAX_UPLOAD_MB * 1024 * 1024 + 1)
     if len(content) > settings.MAX_UPLOAD_MB * 1024 * 1024:
         raise BadRequestError(f"File vượt quá {settings.MAX_UPLOAD_MB}MB")
     return internship_service.import_term_students(db, admin, term_id, file.filename or "", content)
 
 
-@router.delete("/{term_id}/students/{student_id}", status_code=204, summary="Xóa sinh viên khỏi đợt")
+@router.delete(
+    "/{term_id}/students/{student_id}", status_code=204, summary="Xóa sinh viên khỏi đợt"
+)
 def remove_term_student(term_id: int, student_id: int, db: DbSession, _: AdminUser):
     internship_service.remove_student(db, term_id, student_id)
     return Response(status_code=204)
@@ -168,7 +186,11 @@ def list_term_jobs(term_id: int, db: DbSession, user: CurrentUser, pagination: P
     return internship_service.list_term_jobs(db, user, term_id, pagination)
 
 
-@router.get("/{term_id}/results", response_model=Page[InternshipResultRead], summary="Kết quả thực tập của cả đợt")
+@router.get(
+    "/{term_id}/results",
+    response_model=Page[InternshipResultRead],
+    summary="Kết quả thực tập của cả đợt",
+)
 def list_term_results(
     term_id: int,
     db: DbSession,

@@ -2,11 +2,13 @@
 
 Khuôn mẫu: app/schemas/catalog.py  (XBase -> XCreate -> XUpdate(Optional) -> XRead(ORMModel)).
 """
-from typing import Optional
+
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.schemas.common import ORMModel
+from app.schemas.school_common import SchoolUpdate
 
 
 class LecturerBase(BaseModel):
@@ -23,7 +25,8 @@ class LecturerCreate(LecturerBase):
     pass
 
 
-class LecturerUpdate(BaseModel):
+class LecturerUpdate(SchoolUpdate):
+    required_non_null: ClassVar[tuple[str, ...]] = ("full_name", "faculty_id", "is_active")
     model_config = ConfigDict(str_strip_whitespace=True)
 
     code: Optional[str] = Field(default=None, min_length=1, max_length=30)
