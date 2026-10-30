@@ -1,8 +1,27 @@
-"""Schema Pydantic: Lời mời ứng tuyển. Người phụ trách: TV4.
+"""Schema Pydantic: Lời mời ứng tuyển. Người phụ trách: Khôi."""
+from datetime import datetime
+from typing import Optional
 
-Cần có:
-  - InvitationCreate, InvitationRead
+from pydantic import BaseModel, ConfigDict, Field
 
-Khuôn mẫu: app/schemas/catalog.py  (XBase -> XCreate -> XUpdate(Optional) -> XRead(ORMModel)).
-Schema response kế thừa ORMModel (app.schemas.common).
-"""
+from app.schemas.common import ORMModel
+
+
+class InvitationCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    job_id: int = Field(ge=1)
+    student_id: int = Field(ge=1)
+    message: Optional[str] = Field(default=None, max_length=500)
+
+
+class InvitationRead(ORMModel):
+    id: int
+    job_id: int
+    student_id: int
+    company_id: int
+    status: str
+    message: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None  # Cho phép None nếu model DB không có cột này
+    
+    model_config = ConfigDict(from_attributes=True)

@@ -1,16 +1,58 @@
-"""Quản lý ứng viên (Kanban). Người phụ trách: TV4.
+"""Quản lý ứng viên (Kanban). Người phụ trách: Khôi."""
+from typing import Optional
 
-Endpoints cần làm:
-  - GET /company/applications — danh sách đơn theo job_id; lọc ngành, GPA, kỹ năng, kinh nghiệm; có thể gom nhóm theo trạng thái cho Kanban
-  - GET /company/applications/{id} — hồ sơ sinh viên + CV snapshot (chỉ đơn thuộc tin của công ty mình)
-  - PUT /company/applications/{id}/status — kéo thả đổi trạng thái; kiểm tra chuyển trạng thái hợp lệ (APPLIED→SCREENING→SHORTLISTED→INTERVIEW→OFFER→HIRED, REJECTED từ bất kỳ bước nào); ghi log; gửi thông báo + email cho sinh viên. Body có `note` (tùy chọn): khi chuyển INTERVIEW/OFFER, doanh nghiệp nhập nội dung (thời gian, địa điểm/link...) -> lưu vào status log và gửi email cho sinh viên. KHÔNG có bảng lịch phỏng vấn
-  - GET /company/applications/{id}/history — lịch sử xử lý
+from fastapi import APIRouter, BackgroundTasks, Query
 
-Khuôn mẫu: xem app/routers/catalog.py (router mỏng) + app/services/catalog_service.py (nghiệp vụ).
-Router chỉ khai báo endpoint + quyền + response_model, gọi service, KHÔNG truy vấn DB trực tiếp.
-"""
-from fastapi import APIRouter
+from app.core.enums import ApplicationStatus
+from app.dependencies import CurrentCompany, DbSession, Pagination
+from app.schemas.applications import (
+    ApplicationDetail,
+    ApplicationRead,
+    ApplicationStatusUpdate,
+    StatusLogRead,
+)
+from app.schemas.common import Page
+from app.services import company_application_service
 
 router = APIRouter(prefix="/company/applications", tags=["Company - Applications"])
 
-# TODO(TV4): triển khai các endpoint ở docstring trên.
+
+@router.get("", response_model=Page[ApplicationRead], summary="Danh sách đơn theo job_id và bộ lọc")
+def list_applications(
+    db: DbSession,
+    company: CurrentCompany,
+    pagination: Pagination,
+    job_id: int = Query(..., description="ID tin tuyển dụng"),
+    status: Optional[ApplicationStatus] = None,
+    major_id: Optional[int] = None,
+    min_gpa: Optional[float] = None,
+    skill_id: Optional[int] = None,
+    min_experience_months: Optional[int] = None,
+):
+    return company_application_service.list_applications(
+        db, company, job_id, pagination, status=status, major_id=major_id,
+        min_gpa=min_gpa, skill_id=skill_id, min_experience_months=min_experience_months
+    )
+
+
+@router.get("/{application_id}", response_model=ApplicationDetail, summary="Xem chi tiết đơn + CV snapshot")
+def get_application(application_id: int, db: DbSession, company: CurrentCompany):
+    return company_application_service.get_application(db, company, application_id)
+
+
+@router.put("/{application_id}/status", response_model=ApplicationRead, summary="Đổi trạng thái đơn (Kanban)")
+def change_status(
+    application_id: int,
+    data: ApplicationStatusUpdate,
+    db: DbSession,
+    company: CurrentCompany,
+    background_tasks: BackgroundTasks,
+):
+    return company_application_service.log_status_change(
+        db, background_tasks, company, application_id, data.status, data.note
+    )
+
+
+@router.get("/{application_id}/history", response_model=list[StatusLogRead], summary="Lịch sử xử lý đơn")
+def get_history(application_id: int, db: DbSession, company: CurrentCompany):
+    return company_application_service.get_history(db, company, application_id)

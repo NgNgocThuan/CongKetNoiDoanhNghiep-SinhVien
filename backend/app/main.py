@@ -1,4 +1,4 @@
-"""Điểm vào ứng dụng FastAPI.  Chạy:  uvicorn app.main:app --reload"""
+"""Điểm vào ứng dụng FastAPI. Chạy: uvicorn app.main:app --reload"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
