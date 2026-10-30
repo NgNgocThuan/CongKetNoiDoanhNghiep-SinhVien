@@ -17,28 +17,61 @@ const NotFound = lazy(() => import('@/features/shared/pages/NotFoundPage'))
 const Forbidden = lazy(() => import('@/features/shared/pages/AccessDeniedPage'))
 const Password = lazy(() => import('@/features/auth/pages/PasswordPage'))
 const Notifications = lazy(() => import('@/features/notifications/pages/NotificationsPage'))
+
 function Entry() {
   const { user, status } = useAuth()
   if (status === 'loading') return <LoadingState />
   return <Navigate to={user ? roleHome[user.role] : '/login'} replace />
 }
-function roleRoutes(role: Role, layout: RouteObject['element']): RouteObject {
-  return { element: <RequireRole role={role} />, children: [{ path: roleHome[role], element: layout, children: [
-    { index: true, element: <Workspace /> },
-    { path: 'settings', element: <Password mode="change" /> },
-    { path: 'notifications', element: <Notifications /> },
-    ...features[role].filter(feature => !feature.ready).map(feature => ({ path: feature.path, element: <Planned feature={feature} /> })),
-    ...featureRoutes[role],
-  ] }] }
+
+function RoleNotificationRedirect() {
+  const { user, status } = useAuth()
+  if (status === 'loading') return <LoadingState />
+  return <Navigate to={user ? `${roleHome[user.role]}/notifications` : '/login'} replace />
 }
+
+function RoleSettingsRedirect() {
+  const { user, status } = useAuth()
+  if (status === 'loading') return <LoadingState />
+  return <Navigate to={user ? `${roleHome[user.role]}/settings` : '/login'} replace />
+}
+
+function roleRoutes(role: Role, layout: RouteObject['element']): RouteObject {
+  return {
+    element: <RequireRole role={role} />,
+    children: [
+      {
+        path: roleHome[role],
+        element: layout,
+        children: [
+          { index: true, element: <Workspace /> },
+          { path: 'settings', element: <Password mode="change" /> },
+          { path: 'notifications', element: <Notifications /> },
+          ...features[role]
+            .filter(feature => !feature.ready)
+            .map(feature => ({ path: feature.path, element: <Planned feature={feature} /> })),
+          ...featureRoutes[role],
+        ],
+      },
+    ],
+  }
+}
+
 export const routes: RouteObject[] = [
   { path: '/', element: <Entry /> },
   ...authRoutes,
-  { element: <RequireAuth />, children: [
-    roleRoutes('STUDENT', <StudentLayout />),
-    roleRoutes('COMPANY', <CompanyLayout />),
-    roleRoutes('ADMIN', <AdminLayout />),
-    { path: '/403', element: <Forbidden /> },
-  ] },
+  {
+    element: <RequireAuth />,
+    children: [
+      roleRoutes('STUDENT', <StudentLayout />),
+      roleRoutes('COMPANY', <CompanyLayout />),
+      roleRoutes('ADMIN', <AdminLayout />),
+      { path: '/notifications', element: <RoleNotificationRedirect /> },
+      { path: '/change-password', element: <RoleSettingsRedirect /> },
+      { path: '/settings', element: <RoleSettingsRedirect /> },
+      { path: '/reports', element: <Navigate to="/admin/reports" replace /> },
+      { path: '/403', element: <Forbidden /> },
+    ],
+  },
   { path: '*', element: <NotFound /> },
 ]
