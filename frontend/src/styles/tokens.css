@@ -1,0 +1,13 @@
+:root {
+  color-scheme: light;
+  --font: Inter, "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --brand: #2563eb; --brand-strong: #1d4ed8; --navy: #143764;
+  --ink: #172840; --muted: #6c7c91; --surface: #ffffff; --canvas: #f6f8fc;
+  --line: #e5ebf3; --soft: #edf3ff; --success: #14745a; --danger: #bd3545;
+  --radius: 14px; --shadow: 0 12px 35px #16335909; --sidebar: 252px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+}
+[data-role="STUDENT"] { --accent: #2563eb; --accent-soft: #edf3ff; --hero-from: #163f7f; --hero-to: #2563b4; }
+[data-role="COMPANY"] { --accent: #087d71; --accent-soft: #e8f5f2; --hero-from: #15534f; --hero-to: #168478; }
+[data-role="ADMIN"] { --accent: #354d8b; --accent-soft: #edf0fa; --hero-from: #243654; --hero-to: #415c85; }

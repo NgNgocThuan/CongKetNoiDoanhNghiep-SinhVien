@@ -1,7 +1,7 @@
 # Cổng kết nối Sinh viên – Doanh nghiệp – Nhà trường
 
 - Backend: Python FastAPI, SQLAlchemy 2.x và Alembic; cấu hình dự án hướng tới Python 3.11+.
-- Frontend: ReactJS (dự kiến), hiện chỉ có `.gitkeep`.
+- Frontend: React + TypeScript + Vite. Xem [hướng dẫn frontend](frontend/README.md).
 - Database: MariaDB, kết nối qua PyMySQL. Docker Compose hiện dùng MariaDB 10.11.
 
 ## Cấu trúc
@@ -22,7 +22,7 @@ CongKetNoiDoanhNghiep-SinhVien/
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
 │   └── README.md
-├── frontend/.gitkeep
+├── frontend/
 ├── .gitignore
 └── README.md
 ```
