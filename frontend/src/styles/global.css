@@ -1,0 +1,61 @@
+:root {
+  --sc-primary: #1e40af;
+  --sc-accent: #0f766e;
+  --sc-border: #e2e8f0;
+  --sc-muted: #64748b;
+  --sc-bg: #f8fafc;
+}
+
+body {
+  margin: 0;
+  background: var(--sc-bg);
+}
+
+h1,
+h2,
+h3,
+.sc-display {
+  font-family: 'Bricolage Grotesque', 'Be Vietnam Pro', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Nút chính dạng viên thuốc theo thiết kế */
+.ant-btn:not(.ant-btn-sm):not(.ant-btn-icon-only):not(.ant-btn-link) {
+  border-radius: 9999px;
+}
+
+.sc-card {
+  background: #fff;
+  border: 1px solid var(--sc-border);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+}
+
+.sc-eyebrow {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 9999px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.sc-page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 32px 48px;
+}
+
+@media (max-width: 767px) {
+  .sc-page {
+    padding: 16px 16px 32px;
+  }
+}
+
+/* Bảng cuộn ngang thay vì tràn màn hình trên mobile */
+.ant-table-wrapper {
+  max-width: 100%;
+}
