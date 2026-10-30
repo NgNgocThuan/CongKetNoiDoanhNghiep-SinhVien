@@ -1,4 +1,5 @@
 """Test: Kanban ứng viên (đổi trạng thái, lịch sử, chi tiết, lọc) và lời mời ứng tuyển."""
+
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -24,7 +25,9 @@ from app.models import (
     StudentExperience,
     StudentProfile,
 )
-from app.schemas.applications import ApplicationRead, StatusLogRead
+from app.schemas.applications import StatusLogRead
+from app.schemas.company_applications import CompanyApplicationRead
+from app.services.company_application_service import application_payload
 
 APP_URL = "/api/v1/company/applications"
 INV_URL = "/api/v1/invitations"
@@ -34,7 +37,9 @@ INV_URL = "/api/v1/invitations"
 @pytest.fixture(autouse=True)
 def no_real_email(monkeypatch):
     """Không gửi email thật khi BackgroundTasks chạy."""
-    monkeypatch.setattr("app.services.email_service.send_email_task", lambda *a, **k: None, raising=False)
+    monkeypatch.setattr(
+        "app.services.email_service.send_email_task", lambda *a, **k: None, raising=False
+    )
 
 
 @pytest.fixture()
@@ -79,7 +84,12 @@ def build(db):
     def _build(model, **kwargs):
         for col in model.__table__.columns:
             key = col.key
-            if key in kwargs or col.nullable or col.default is not None or col.server_default is not None:
+            if (
+                key in kwargs
+                or col.nullable
+                or col.default is not None
+                or col.server_default is not None
+            ):
                 continue
             if col.foreign_keys:
                 parent_table = next(iter(col.foreign_keys)).column.table
@@ -151,7 +161,9 @@ def make_job(build):
 def make_application(db, build):
     def _make(student, job, status=ApplicationStatus.APPLIED):
         cv = build(CV, student_id=student.id, type=CVType.UPLOADED)
-        application = Application(student_id=student.id, job_id=job.id, cv_id=cv.id, current_status=status)
+        application = Application(
+            student_id=student.id, job_id=job.id, cv_id=cv.id, current_status=status
+        )
         db.add(application)
         db.commit()
         db.refresh(application)
@@ -161,19 +173,25 @@ def make_application(db, build):
 
 
 # --------------------------------------------------------------------------- schema
-def test_application_read_validates_from_model(make_company, make_student, make_job, make_application):
+def test_application_read_validates_from_model(
+    make_company, make_student, make_job, make_application
+):
     _, company = make_company()
     _, student = make_student(open=True)
     application = make_application(student, make_job(company))
-    data = ApplicationRead.model_validate(application)
+    data = CompanyApplicationRead.model_validate(application_payload(application))
     assert data.applied_at == application.applied_at
 
 
-def test_status_log_read_validates_from_model(db, make_company, make_student, make_job, make_application):
+def test_status_log_read_validates_from_model(
+    db, make_company, make_student, make_job, make_application
+):
     _, company = make_company()
     _, student = make_student(open=True)
     application = make_application(student, make_job(company))
-    log = ApplicationStatusLog(application_id=application.id, old_status="APPLIED", new_status="SCREENING")
+    log = ApplicationStatusLog(
+        application_id=application.id, old_status="APPLIED", new_status="SCREENING"
+    )
     db.add(log)
     db.commit()
     db.refresh(log)
@@ -197,44 +215,60 @@ def test_change_status_writes_log_and_notifies(
     assert response.status_code == 200, response.text
     assert response.json()["current_status"] == "SCREENING"
 
-    log = db.scalars(select(ApplicationStatusLog).where(ApplicationStatusLog.application_id == application.id)).one()
+    log = db.scalars(
+        select(ApplicationStatusLog).where(ApplicationStatusLog.application_id == application.id)
+    ).one()
     assert (log.old_status, log.new_status) == ("APPLIED", "SCREENING")
     assert log.changed_by == company_user.id
     assert log.note == "Hồ sơ phù hợp"
 
-    notification = db.scalars(select(Notification).where(Notification.user_id == student_user.id)).one()
+    notification = db.scalars(
+        select(Notification).where(Notification.user_id == student_user.id)
+    ).one()
     assert notification.type == "APPLICATION_STATUS"
 
 
-def test_invalid_transition_is_rejected(client, db, make_company, make_student, make_job, make_application, auth_headers):
+def test_invalid_transition_is_rejected(
+    client, db, make_company, make_student, make_job, make_application, auth_headers
+):
     company_user, company = make_company()
     _, student = make_student(open=True)
     application = make_application(student, make_job(company))
 
     response = client.put(
-        f"{APP_URL}/{application.id}/status", json={"status": "OFFER"}, headers=auth_headers(company_user)
+        f"{APP_URL}/{application.id}/status",
+        json={"status": "OFFER"},
+        headers=auth_headers(company_user),
     )
     assert response.status_code == 400
     assert db.scalars(select(ApplicationStatusLog)).first() is None
 
 
-def test_closed_application_cannot_change(client, make_company, make_student, make_job, make_application, auth_headers):
+def test_closed_application_cannot_change(
+    client, make_company, make_student, make_job, make_application, auth_headers
+):
     company_user, company = make_company()
     _, student = make_student(open=True)
     application = make_application(student, make_job(company), status=ApplicationStatus.REJECTED)
     response = client.put(
-        f"{APP_URL}/{application.id}/status", json={"status": "SCREENING"}, headers=auth_headers(company_user)
+        f"{APP_URL}/{application.id}/status",
+        json={"status": "SCREENING"},
+        headers=auth_headers(company_user),
     )
     assert response.status_code == 409
 
 
-def test_history_returns_logs(client, make_company, make_student, make_job, make_application, auth_headers):
+def test_history_returns_logs(
+    client, make_company, make_student, make_job, make_application, auth_headers
+):
     company_user, company = make_company()
     _, student = make_student(open=True)
     application = make_application(student, make_job(company))
     headers = auth_headers(company_user)
     client.put(f"{APP_URL}/{application.id}/status", json={"status": "SCREENING"}, headers=headers)
-    client.put(f"{APP_URL}/{application.id}/status", json={"status": "SHORTLISTED"}, headers=headers)
+    client.put(
+        f"{APP_URL}/{application.id}/status", json={"status": "SHORTLISTED"}, headers=headers
+    )
 
     response = client.get(f"{APP_URL}/{application.id}/history", headers=headers)
     assert response.status_code == 200, response.text
@@ -246,7 +280,9 @@ def test_history_returns_logs(client, make_company, make_student, make_job, make
     assert body[0]["changed_by"] == company_user.id and body[0]["changed_at"]
 
 
-def test_detail_hides_contact_by_default(client, make_company, make_student, make_job, make_application, auth_headers):
+def test_detail_hides_contact_by_default(
+    client, make_company, make_student, make_job, make_application, auth_headers
+):
     company_user, company = make_company()
     _, student = make_student(open=True, show_contact=False)
     application = make_application(student, make_job(company))
@@ -259,7 +295,9 @@ def test_detail_hides_contact_by_default(client, make_company, make_student, mak
     assert "profile" not in body["student"]
 
 
-def test_detail_shows_contact_when_allowed(client, make_company, make_student, make_job, make_application, auth_headers):
+def test_detail_shows_contact_when_allowed(
+    client, make_company, make_student, make_job, make_application, auth_headers
+):
     company_user, company = make_company()
     _, student = make_student(open=True, show_contact=True)
     application = make_application(student, make_job(company))
@@ -280,7 +318,9 @@ def test_other_company_cannot_see_application(
     headers = auth_headers(other_user)
     assert client.get(f"{APP_URL}/{application.id}", headers=headers).status_code == 404
     assert (
-        client.put(f"{APP_URL}/{application.id}/status", json={"status": "SCREENING"}, headers=headers).status_code
+        client.put(
+            f"{APP_URL}/{application.id}/status", json={"status": "SCREENING"}, headers=headers
+        ).status_code
         == 404
     )
 
@@ -310,11 +350,18 @@ def test_list_applications_and_experience_filter(
     assert everyone.status_code == 200, everyone.text
     assert everyone.json()["total"] == 2
 
-    filtered = client.get(APP_URL, params={"job_id": job.id, "min_experience_months": 6}, headers=headers).json()
+    filtered = client.get(
+        APP_URL, params={"job_id": job.id, "min_experience_months": 6}, headers=headers
+    ).json()
     assert [i["student_id"] for i in filtered["items"]] == [experienced.id]
     assert filtered["items"][0]["student"]["experience_months"] == 12
 
-    assert client.get(APP_URL, params={"job_id": job.id, "min_experience_months": 24}, headers=headers).json()["total"] == 0
+    assert (
+        client.get(
+            APP_URL, params={"job_id": job.id, "min_experience_months": 24}, headers=headers
+        ).json()["total"]
+        == 0
+    )
 
 
 # --------------------------------------------------------------------------- Lời mời
@@ -324,27 +371,38 @@ def test_invite_open_student(client, db, make_company, make_student, make_job, a
     job = make_job(company)
 
     response = client.post(
-        INV_URL, json={"job_id": job.id, "student_id": student.id, "message": "Mời bạn"}, headers=auth_headers(company_user)
+        INV_URL,
+        json={"job_id": job.id, "student_id": student.id, "message": "Mời bạn"},
+        headers=auth_headers(company_user),
     )
     assert response.status_code == 201, response.text
     assert response.json()["status"] == "PENDING"
-    assert db.scalars(select(Notification).where(Notification.user_id == student_user.id)).one().type == "INVITATION"
+    assert (
+        db.scalars(select(Notification).where(Notification.user_id == student_user.id)).one().type
+        == "INVITATION"
+    )
 
 
 def test_invite_closed_student_rejected(client, make_company, make_student, make_job, auth_headers):
     company_user, company = make_company()
     _, student = make_student(open=False)
     response = client.post(
-        INV_URL, json={"job_id": make_job(company).id, "student_id": student.id}, headers=auth_headers(company_user)
+        INV_URL,
+        json={"job_id": make_job(company).id, "student_id": student.id},
+        headers=auth_headers(company_user),
     )
     assert response.status_code == 400
 
 
-def test_invite_student_without_profile_rejected(client, make_company, make_student, make_job, auth_headers):
+def test_invite_student_without_profile_rejected(
+    client, make_company, make_student, make_job, auth_headers
+):
     company_user, company = make_company()
     _, student = make_student(open=None)
     response = client.post(
-        INV_URL, json={"job_id": make_job(company).id, "student_id": student.id}, headers=auth_headers(company_user)
+        INV_URL,
+        json={"job_id": make_job(company).id, "student_id": student.id},
+        headers=auth_headers(company_user),
     )
     assert response.status_code == 400
 
@@ -358,11 +416,15 @@ def test_duplicate_invitation_conflict(client, make_company, make_student, make_
     assert client.post(INV_URL, json=payload, headers=headers).status_code == 409
 
 
-def test_student_declines_invitation(client, db, make_company, make_student, make_job, auth_headers):
+def test_student_declines_invitation(
+    client, db, make_company, make_student, make_job, auth_headers
+):
     company_user, company = make_company()
     student_user, student = make_student(open=True)
     created = client.post(
-        INV_URL, json={"job_id": make_job(company).id, "student_id": student.id}, headers=auth_headers(company_user)
+        INV_URL,
+        json={"job_id": make_job(company).id, "student_id": student.id},
+        headers=auth_headers(company_user),
     ).json()
 
     response = client.post(f"{INV_URL}/{created['id']}/decline", headers=auth_headers(student_user))

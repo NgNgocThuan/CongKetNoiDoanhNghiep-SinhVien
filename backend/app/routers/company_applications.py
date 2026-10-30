@@ -1,18 +1,24 @@
 """Quản lý ứng viên (Kanban). Người phụ trách: Khôi."""
+
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi.responses import FileResponse
 
 from app.core.enums import ApplicationStatus
 from app.dependencies import CurrentCompany, DbSession, Pagination
-from app.schemas.applications import (
-    ApplicationDetail,
-    ApplicationRead,
+from app.schemas.common import Page
+from app.schemas.company_applications import (
     ApplicationStatusUpdate,
     StatusLogRead,
 )
-from app.schemas.common import Page
-from app.services import company_application_service
+from app.schemas.company_applications import (
+    CompanyApplicationDetail as ApplicationDetail,
+)
+from app.schemas.company_applications import (
+    CompanyApplicationRead as ApplicationRead,
+)
+from app.services import company_application_service, cv_service
 
 router = APIRouter(prefix="/company/applications", tags=["Company - Applications"])
 
@@ -30,17 +36,30 @@ def list_applications(
     min_experience_months: Optional[int] = None,
 ):
     return company_application_service.list_applications(
-        db, company, job_id, pagination, status=status, major_id=major_id,
-        min_gpa=min_gpa, skill_id=skill_id, min_experience_months=min_experience_months
+        db,
+        company,
+        job_id,
+        pagination,
+        status=status,
+        major_id=major_id,
+        min_gpa=min_gpa,
+        skill_id=skill_id,
+        min_experience_months=min_experience_months,
     )
 
 
-@router.get("/{application_id}", response_model=ApplicationDetail, summary="Xem chi tiết đơn + CV snapshot")
+@router.get(
+    "/{application_id}", response_model=ApplicationDetail, summary="Xem chi tiết đơn + CV snapshot"
+)
 def get_application(application_id: int, db: DbSession, company: CurrentCompany):
     return company_application_service.get_application(db, company, application_id)
 
 
-@router.put("/{application_id}/status", response_model=ApplicationRead, summary="Đổi trạng thái đơn (Kanban)")
+@router.put(
+    "/{application_id}/status",
+    response_model=ApplicationRead,
+    summary="Đổi trạng thái đơn (Kanban)",
+)
 def change_status(
     application_id: int,
     data: ApplicationStatusUpdate,
@@ -53,6 +72,20 @@ def change_status(
     )
 
 
-@router.get("/{application_id}/history", response_model=list[StatusLogRead], summary="Lịch sử xử lý đơn")
+@router.get(
+    "/{application_id}/history", response_model=list[StatusLogRead], summary="Lịch sử xử lý đơn"
+)
 def get_history(application_id: int, db: DbSession, company: CurrentCompany):
     return company_application_service.get_history(db, company, application_id)
+
+
+@router.get(
+    "/{application_id}/cv",
+    response_class=FileResponse,
+    summary="T?i ??ng b?n CV ?? n?p theo ??n ?ng tuy?n",
+)
+def download_application_cv(application_id: int, db: DbSession, company: CurrentCompany):
+    path, filename, media_type = cv_service.get_application_snapshot_path(
+        db, company.id, application_id
+    )
+    return FileResponse(path=path, filename=filename, media_type=media_type)

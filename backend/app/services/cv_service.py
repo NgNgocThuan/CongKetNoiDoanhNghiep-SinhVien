@@ -1,15 +1,16 @@
 """Business rules for uploaded and online CVs."""
+
 import json
 from pathlib import Path
 
 from fastapi import UploadFile
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.ai import cv_parser
 from app.core.config import settings
 from app.core.enums import CVType, UserRole
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models import CV, Application, Job, Student, User
 from app.schemas.cvs import CVOnlineCreate, CVUpdate
 from app.utils.datetime_utils import utcnow
@@ -87,15 +88,9 @@ def create_online_cv(db: Session, student: Student, data: CVOnlineCreate) -> CV:
     return cv
 
 
-def _get_owned_cv(
-    db: Session, student: Student, cv_id: int, *, active_only: bool = True
-) -> CV:
+def _get_owned_cv(db: Session, student: Student, cv_id: int, *, active_only: bool = True) -> CV:
     cv = db.get(CV, cv_id)
-    if (
-        cv is None
-        or cv.student_id != student.id
-        or (active_only and cv.deleted_at is not None)
-    ):
+    if cv is None or cv.student_id != student.id or (active_only and cv.deleted_at is not None):
         raise NotFoundError("Không tìm thấy CV")
     return cv
 
@@ -138,9 +133,7 @@ def soft_delete_cv(db: Session, student: Student, cv_id: int) -> None:
 def set_default(db: Session, student: Student, cv_id: int) -> CV:
     cv = _get_owned_cv(db, student, cv_id)
     db.execute(
-        update(CV)
-        .where(CV.student_id == student.id, CV.id != cv.id)
-        .values(is_default=False)
+        update(CV).where(CV.student_id == student.id, CV.id != cv.id).values(is_default=False)
     )
     cv.is_default = True
     db.commit()
@@ -149,6 +142,19 @@ def set_default(db: Session, student: Student, cv_id: int) -> CV:
 
 
 def _company_snapshot(db: Session, company_id: int, cv_id: int) -> str | None:
+    count = db.scalar(
+        select(func.count(func.distinct(Application.cv_snapshot_url)))
+        .join(Job, Job.id == Application.job_id)
+        .where(
+            Application.cv_id == cv_id,
+            Application.cv_snapshot_url.is_not(None),
+            Job.company_id == company_id,
+        )
+    )
+    if count > 1:
+        raise ConflictError(
+            "CV c? nhi?u b?n ?? n?p; h?y t?i theo ??n ?ng tuy?n", code="APPLICATION_REQUIRED"
+        )
     stmt = (
         select(Application.cv_snapshot_url)
         .join(Job, Job.id == Application.job_id)
@@ -167,7 +173,9 @@ def _write_online_cv(cv: CV) -> Path:
     relative = Path("cvs") / "online" / str(cv.student_id) / f"cv-{cv.id}.json"
     path = Path(settings.UPLOAD_DIR) / relative
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cv.content_json or {}, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(cv.content_json or {}, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return path
 
 
@@ -192,9 +200,7 @@ def get_downloadable_path(db: Session, cv_id: int, user: User) -> tuple[Path, st
         if path.suffix.lower() == ".pdf":
             media_type = "application/pdf"
         elif path.suffix.lower() == ".docx":
-            media_type = (
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         else:
             media_type = "application/json"
     elif cv.type == CVType.UPLOADED:
@@ -222,3 +228,26 @@ def analyze_cv(db: Session, student: Student, cv_id: int) -> dict:
     cv.parsed_json = parsed
     db.commit()
     return {"cv_id": cv.id, "parsed_json": parsed}
+
+
+def get_application_snapshot_path(
+    db: Session, company_id: int, application_id: int
+) -> tuple[Path, str, str]:
+    application = db.scalar(
+        select(Application)
+        .join(Job)
+        .where(Application.id == application_id, Job.company_id == company_id)
+    )
+    if application is None or not application.cv_snapshot_url:
+        raise NotFoundError("Kh?ng t?m th?y CV ?? n?p c?a ??n ?ng tuy?n")
+    path = absolute_path(application.cv_snapshot_url).resolve()
+    if not path.is_relative_to(Path(settings.UPLOAD_DIR).resolve()) or not path.is_file():
+        raise NotFoundError("Kh?ng t?m th?y CV ?? n?p")
+    media = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".json": "application/json",
+    }
+    if path.suffix.lower() not in media:
+        raise NotFoundError("??nh d?ng CV kh?ng h?p l?")
+    return path, path.name, media[path.suffix.lower()]
