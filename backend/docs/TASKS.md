@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | **TV1** | ........ | Nền tảng, bảo mật, kiểm duyệt | `auth`, `users`, `notifications` (+email), `reports`, `admin_companies`, `admin_jobs` | Trung bình, nhưng **chặn các bạn khác** nên làm trước |
 | **TV2** | ........ | Dữ liệu nhà trường, danh mục, thực tập theo đợt | `catalog`, `admin_students` (import), `admin_lecturers`, `internship_terms` | Trung bình (import Excel là phần khó nhất) |
-| **TV3** | ........ | Phía sinh viên | `students`, `cvs`, `saved_jobs`, `applications` | Trung bình đến khó (luồng ứng tuyển nhiều quy tắc) |
+| **TV3** | Việt Anh | Phía sinh viên | `students`, `cvs`, `saved_jobs`, `applications` | Trung bình đến khó (luồng ứng tuyển nhiều quy tắc) |
 | **TV4** | ........ | Phía doanh nghiệp, tuyển dụng | `companies`, `jobs`, `company_applications` (Kanban), `invitations` | Khó (tìm kiếm tin, luồng trạng thái, quyền riêng tư) |
 | **TV5** | ........ | AI và phân tích | `ai/*`, `matching`, `dashboard`, `exports` | Khó (thuật toán điểm, thống kê, xuất báo cáo) |
 
