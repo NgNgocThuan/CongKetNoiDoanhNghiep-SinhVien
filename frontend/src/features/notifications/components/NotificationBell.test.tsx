@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { NotificationBell } from './NotificationBell'
 import { notificationsApi } from '../api/notifications.api'
+import { ApiError } from '@/lib/api-error'
 
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
@@ -126,5 +127,32 @@ describe('NotificationBell & Flyout Drawer', () => {
       expect(notificationsApi.read).toHaveBeenCalledWith(101)
       expect(mockNavigate).toHaveBeenCalledWith('/student/applications')
     })
+  })
+
+  it('displays error state and retry button when loading notifications fails', async () => {
+    vi.mocked(notificationsApi.list).mockRejectedValueOnce(
+      new ApiError('Tài khoản không có quyền truy cập', 403, 'FORBIDDEN')
+    )
+
+    renderWithClient()
+
+    const bellBtn = screen.getByRole('button', { name: /Thông báo/i })
+    await userEvent.click(bellBtn)
+
+    expect(await screen.findByText(/Tài khoản không có quyền truy cập/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Thử lại/i })).toBeInTheDocument()
+    expect(screen.queryByText(/Bạn đã cập nhật mọi thông tin!/i)).not.toBeInTheDocument()
+
+    // Bấm Thử lại thành công
+    vi.mocked(notificationsApi.list).mockResolvedValueOnce({
+      items: sampleNotifications,
+      total: 2,
+      page: 1,
+      size: 10,
+      pages: 1,
+    })
+    await userEvent.click(screen.getByRole('button', { name: /Thử lại/i }))
+
+    expect(await screen.findByText('Đơn ứng tuyển được chấp nhận')).toBeInTheDocument()
   })
 })

@@ -29,7 +29,6 @@ const schema = z.object({
   password: z.string().min(8, 'Mật khẩu khởi tạo cần tối thiểu 8 ký tự.').max(128),
   company_name: z.string().trim().min(1, 'Vui lòng nhập tên công ty đầy đủ theo ĐKKD.').max(255),
   tax_code: z.string().trim().min(1, 'Vui lòng nhập mã số thuế doanh nghiệp.').max(20),
-  industry_id: z.string().optional(),
   website: z.string().trim().url('Website phải là URL hợp lệ (ví dụ: https://company.com)').optional().or(z.literal('')),
   address: z.string().trim().max(255).optional().or(z.literal('')),
   contact_name: z.string().trim().max(100).optional().or(z.literal('')),
@@ -57,7 +56,6 @@ export default function RegisterCompanyPage() {
       password: '',
       company_name: '',
       tax_code: '',
-      industry_id: '',
       website: '',
       address: '',
       contact_name: '',
@@ -74,7 +72,7 @@ export default function RegisterCompanyPage() {
         password: values.password,
         company_name: values.company_name,
         tax_code: values.tax_code,
-        industry_id: values.industry_id ? Number(values.industry_id) : null,
+        industry_id: null,
         address: values.address || null,
         website: values.website || null,
         contact_name: values.contact_name || null,
@@ -128,140 +126,125 @@ export default function RegisterCompanyPage() {
           /* ============================================================ */
           /* MÀN HÌNH SAU KHI GỬI THÀNH CÔNG: CHỜ DUYỆT (PENDING_APPROVAL) */
           /* ============================================================ */
-          <div className="max-w-2xl mx-auto bg-white rounded-2xl border-2 border-amber-300 p-8 shadow-sm">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-8 h-8" />
+          <div className="max-w-2xl mx-auto my-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-3xl border border-[#E2E8F0] p-8 sm:p-12 shadow-sm text-center">
+              <div className="w-20 h-20 rounded-full bg-amber-50 border-4 border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-6 shadow-xs animate-bounce">
+                <Clock className="w-10 h-10 text-amber-600" />
               </div>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#FEF3C7] text-[#D97706] border border-amber-300 mb-2">
-                <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
+
+              <div className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-[#FEF3C7] text-[#D97706] border border-amber-300 mb-4">
+                <span className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-ping" />
                 PENDING_APPROVAL
-              </span>
-              <h2 className="text-2xl font-extrabold text-[#131B2E] tracking-tight m-0">
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#131B2E] tracking-tight m-0">
                 Hồ sơ đang chờ Nhà trường phê duyệt
-              </h2>
-              <p className="text-sm text-[#444653] mt-2 mb-0">
-                Cảm ơn <strong>{registeredCompanyName || 'Quý Doanh nghiệp'}</strong> đã đăng ký trở thành đối tác thực tập của Nhà trường.
+              </h1>
+
+              <p className="mt-3 text-sm text-[#444653] max-w-lg mx-auto leading-relaxed">
+                Hồ sơ đăng ký đối tác tuyển dụng của doanh nghiệp{' '}
+                <strong className="text-[#131B2E]">{registeredCompanyName}</strong> đã được tiếp nhận thành công vào hệ thống.
               </p>
-            </div>
 
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-[#92400E] leading-relaxed mb-6">
-              <p className="m-0 font-medium">
-                Tài khoản với email <strong>{registeredEmail}</strong> đã được khởi tạo ở trạng thái{' '}
-                <span className="font-bold underline">Chờ phê duyệt</span>. Bạn <strong>chưa thể đăng nhập ngay</strong> cho đến khi Ban Hợp tác Doanh nghiệp hoàn tất đối soát Mã số thuế và kích hoạt tài khoản.
-              </p>
-            </div>
-
-            {/* Tiến trình 3 bước */}
-            <div className="space-y-4 mb-8">
-              <h4 className="text-xs font-bold text-[#131B2E] uppercase tracking-wider mb-2">
-                Tiến trình xét duyệt hồ sơ:
-              </h4>
-              <div className="flex items-start space-x-3 text-xs">
-                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                  ✓
+              {/* Thông tin đối soát */}
+              <div className="my-6 p-5 rounded-2xl bg-[#FAF8FF] border border-[#E2E8F0] text-left max-w-md mx-auto space-y-2.5 text-xs">
+                <div className="flex justify-between items-center py-1 border-b border-gray-200">
+                  <span className="text-gray-500">Email quản trị:</span>
+                  <span className="font-semibold text-[#131B2E]">{registeredEmail}</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-[#131B2E]">Bước 1: Tiếp nhận biểu mẫu</span>
-                  <p className="text-[#444653] text-[11px] mt-0.5 mb-0">Hồ sơ đã được lưu trữ an toàn trong cơ sở dữ liệu nhà trường.</p>
+                <div className="flex justify-between items-center py-1 border-b border-gray-200">
+                  <span className="text-gray-500">Mã quy trình:</span>
+                  <span className="font-mono font-bold text-[#006A63]">REG-ENT-2025</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-gray-500">Thời gian duyệt dự kiến:</span>
+                  <span className="font-semibold text-amber-700">24 - 48 giờ làm việc</span>
                 </div>
               </div>
-              <div className="flex items-start space-x-3 text-xs">
-                <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ring-2 ring-amber-300">
-                  2
-                </div>
-                <div>
-                  <span className="font-semibold text-amber-900">Bước 2: Đối soát MST &amp; Pháp nhân (Đang xử lý)</span>
-                  <p className="text-[#444653] text-[11px] mt-0.5 mb-0">
-                    Phòng Đào tạo &amp; Hợp tác Doanh nghiệp kiểm tra thông tin trên Cổng thông tin Quốc gia về ĐKKD.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start space-x-3 text-xs">
-                <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                  3
-                </div>
-                <div>
-                  <span className="font-semibold text-slate-500">Bước 3: Thông báo kết quả qua email</span>
-                  <p className="text-slate-400 text-[11px] mt-0.5 mb-0">
-                    Khi được phê duyệt, hệ thống sẽ gửi email kích hoạt quyền đăng tin tuyển dụng và tìm kiếm sinh viên.
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#E2E8F0]">
-              <span className="text-xs text-[#444653]">
-                Thời gian xử lý: <strong>24 - 48 giờ làm việc</strong>
-              </span>
-              <Link
-                to="/login"
-                className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#00288E] hover:bg-[#001E6C] text-white text-xs font-semibold text-center transition-colors"
-              >
-                Quay về trang Đăng nhập
-              </Link>
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 max-w-md mx-auto mb-8 text-xs text-amber-800 text-left flex items-start gap-3">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  Ban Hợp tác Doanh nghiệp sẽ tiến hành đối soát Mã số thuế và giấy phép thành lập trước khi kích hoạt quyền đăng tải tin tuyển dụng thực tập.
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link
+                  to="/login"
+                  className="w-full sm:w-auto px-8 py-3 rounded-full bg-[#00288E] hover:bg-[#001E6C] text-white font-medium text-sm transition-all shadow-sm"
+                >
+                  Quay về trang Đăng nhập
+                </Link>
+                <a
+                  href="mailto:mou.partner@edu.vn"
+                  className="w-full sm:w-auto px-6 py-3 rounded-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-medium text-sm transition-all"
+                >
+                  Liên hệ Ban Hợp tác MOU
+                </a>
+              </div>
             </div>
           </div>
         ) : (
           /* ============================================================ */
-          /* FORM ĐĂNG KÝ DOANH NGHIỆP                                    */
+          /* MÀN HÌNH BIỂU MẪU ĐĂNG KÝ DOANH NGHIỆP 2 CỘT (STITCH A02)    */
           /* ============================================================ */
-          <div>
-            {/* Tiêu đề trang */}
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-6">
+            {/* Header Tiêu đề */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
               <div>
-                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#00288E] text-xs font-medium mb-2">
-                  <span className="w-2 h-2 rounded-full bg-[#00288E]" />
+                <div className="inline-flex items-center space-x-2 text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-[#00288E] mb-2 border border-blue-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00288E]" />
                   <span>Thủ tục tiếp nhận Doanh nghiệp • Học kỳ 2025</span>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#00288E] tracking-tight m-0">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#131B2E] tracking-tight m-0">
                   Đăng ký Tài khoản Doanh nghiệp Đối tác
                 </h1>
-                <p className="text-sm text-[#444653] mt-1 mb-0">
+                <p className="text-xs sm:text-sm text-[#444653] mt-1.5 mb-0">
                   Thiết lập tài khoản tuyển dụng chính thức để tiếp cận nguồn sinh viên được Nhà trường chứng thực và bảo trợ.
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2 text-xs text-[#444653] bg-white px-3.5 py-2 rounded-xl border border-[#E2E8F0] shadow-xs">
-                <span className="font-semibold text-[#131B2E]">Mã quy trình:</span>
-                <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-700">REG-ENT-2025</span>
+              <div className="flex items-center space-x-2 text-xs text-[#444653] bg-white px-3.5 py-2 rounded-xl border border-[#E2E8F0] shadow-2xs self-start md:self-auto">
+                <Building className="w-4 h-4 text-[#006A63]" />
+                <span>Mã quy trình:</span>
+                <span className="font-mono font-bold text-[#131B2E]">REG-ENT-2025</span>
               </div>
             </div>
 
-            {/* Layout 2 cột: 70% Form trái - 30% Callout Card phải */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* CỘT TRÁI (8 COLS ~ 70%): FORM CHÍNH */}
-              <section className="lg:col-span-8 bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 shadow-sm">
-                {error && (
-                  <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3 text-red-700 text-xs" role="alert">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
-                    <div>
-                      <span className="font-bold block">Đăng ký chưa thành công:</span>
-                      {error}
-                    </div>
-                  </div>
-                )}
+            {/* Error Banner nếu API trả lỗi */}
+            {error && (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start space-x-3">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold block mb-0.5">Đăng ký chưa thành công:</span>
+                  <span>{error}</span>
+                </div>
+              </div>
+            )}
 
+            {/* Grid Layout 2 Cột */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* CỘT TRÁI (8 COLS ~ 70%): FORM ĐIỀN THÔNG TIN */}
+              <section className="lg:col-span-8 bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 shadow-sm">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-8" noValidate>
-                  {/* PHẦN 1: THÔNG TIN BẮT BUỘC & TÀI KHOẢN */}
+                  {/* PHẦN 1: THÔNG TIN TÀI KHOẢN & PHÁP NHÂN BẮT BUỘC */}
                   <div>
                     <div className="flex items-center justify-between pb-3 mb-5 border-b border-[#E2E8F0]">
                       <div className="flex items-center space-x-2.5">
                         <span className="w-7 h-7 rounded-lg bg-blue-100 text-[#00288E] flex items-center justify-center font-bold text-xs">
                           1
                         </span>
-                        <h2 className="text-base font-bold text-[#131B2E] m-0">
-                          Thông tin Bắt buộc &amp; Tài khoản
-                        </h2>
+                        <h2 className="text-base font-bold text-[#131B2E] m-0">Thông tin Bắt buộc &amp; Tài khoản</h2>
                       </div>
-                      <span className="text-xs text-red-500 font-medium">* Các trường có dấu hoa thị là bắt buộc</span>
+                      <span className="text-xs text-rose-500 font-medium">* Các trường có dấu hoa thị là bắt buộc</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      {/* Email Doanh nghiệp */}
+                      {/* Email doanh nghiệp */}
                       <div>
                         <label htmlFor="company-email" className="block text-xs font-semibold text-[#131B2E] mb-1.5">
-                          Email Doanh nghiệp tuyển dụng <span className="text-red-500">*</span>
+                          Email Doanh nghiệp tuyển dụng <span className="text-rose-500">*</span>
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -273,8 +256,8 @@ export default function RegisterCompanyPage() {
                             autoComplete="username"
                             placeholder="hr@domain-company.com"
                             className={`w-full pl-10 pr-3.5 py-2.5 bg-white border ${
-                              errors.email ? 'border-red-400 bg-red-50/20' : 'border-[#E2E8F0]'
-                            } rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#00288E]/20 focus:border-[#00288E] transition-all`}
+                              errors.email ? 'border-rose-400 bg-rose-50/20' : 'border-[#E2E8F0]'
+                            } rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#006A63]/20 focus:border-[#006A63] transition-all`}
                             {...register('email')}
                           />
                         </div>
@@ -289,9 +272,9 @@ export default function RegisterCompanyPage() {
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label htmlFor="company-password" className="block text-xs font-semibold text-[#131B2E]">
-                            Mật khẩu khởi tạo <span className="text-red-500">*</span>
+                            Mật khẩu khởi tạo <span className="text-rose-500">*</span>
                           </label>
-                          <span className="text-[11px] text-slate-400 font-normal">Tối thiểu 8 ký tự</span>
+                          <span className="text-[11px] text-slate-400">Tối thiểu 8 ký tự</span>
                         </div>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -303,14 +286,13 @@ export default function RegisterCompanyPage() {
                             autoComplete="new-password"
                             placeholder="Nhập mật khẩu an toàn"
                             className={`w-full pl-10 pr-10 py-2.5 bg-white border ${
-                              errors.password ? 'border-red-400 bg-red-50/20' : 'border-[#E2E8F0]'
-                            } rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#00288E]/20 focus:border-[#00288E] transition-all`}
+                              errors.password ? 'border-rose-400 bg-rose-50/20' : 'border-[#E2E8F0]'
+                            } rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#006A63]/20 focus:border-[#006A63] transition-all`}
                             {...register('password')}
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                             className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
                           >
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -324,7 +306,7 @@ export default function RegisterCompanyPage() {
                       {/* Tên công ty đầy đủ */}
                       <div>
                         <label htmlFor="company-name" className="block text-xs font-semibold text-[#131B2E] mb-1.5">
-                          Tên công ty đầy đủ (theo Giấy phép ĐKKD) <span className="text-red-500">*</span>
+                          Tên công ty đầy đủ (theo Giấy phép ĐKKD) <span className="text-rose-500">*</span>
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -335,8 +317,8 @@ export default function RegisterCompanyPage() {
                             type="text"
                             placeholder="VD: Công ty TNHH Phần mềm FPT"
                             className={`w-full pl-10 pr-3.5 py-2.5 bg-white border ${
-                              errors.company_name ? 'border-red-400 bg-red-50/20' : 'border-[#E2E8F0]'
-                            } rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#00288E]/20 focus:border-[#00288E] transition-all`}
+                              errors.company_name ? 'border-rose-400 bg-rose-50/20' : 'border-[#E2E8F0]'
+                            } rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#006A63]/20 focus:border-[#006A63] transition-all`}
                             {...register('company_name')}
                           />
                         </div>
@@ -345,13 +327,13 @@ export default function RegisterCompanyPage() {
                         )}
                       </div>
 
-                      {/* Mã số thuế (MST) */}
+                      {/* Mã số thuế doanh nghiệp */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label htmlFor="tax-code" className="block text-xs font-semibold text-[#131B2E]">
-                            Mã số thuế doanh nghiệp (MST) <span className="text-red-500">*</span>
+                            Mã số thuế doanh nghiệp (MST) <span className="text-rose-500">*</span>
                           </label>
-                          <span className="text-[10px] text-[#006A63] font-medium bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100">
+                          <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
                             Cơ sở đối soát tự động
                           </span>
                         </div>
@@ -364,8 +346,8 @@ export default function RegisterCompanyPage() {
                             type="text"
                             placeholder="VD: 0101248141"
                             className={`w-full pl-10 pr-3.5 py-2.5 bg-white border ${
-                              errors.tax_code ? 'border-red-400 bg-red-50/20' : 'border-[#E2E8F0]'
-                            } rounded-xl text-sm font-mono text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#00288E]/20 focus:border-[#00288E] transition-all`}
+                              errors.tax_code ? 'border-rose-400 bg-rose-50/20' : 'border-[#E2E8F0]'
+                            } rounded-xl text-sm text-[#131B2E] font-mono focus:outline-none focus:ring-2 focus:ring-[#006A63]/20 focus:border-[#006A63] transition-all`}
                             {...register('tax_code')}
                           />
                         </div>
@@ -395,21 +377,13 @@ export default function RegisterCompanyPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       {/* Lĩnh vực hoạt động */}
                       <div>
-                        <label htmlFor="industry-select" className="block text-xs font-semibold text-[#131B2E] mb-1.5">
+                        <label className="block text-xs font-semibold text-[#131B2E] mb-1.5">
                           Lĩnh vực hoạt động chuyên ngành
                         </label>
-                        <select
-                          id="industry-select"
-                          className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#131B2E] focus:outline-none focus:ring-2 focus:ring-[#006A63]/20 focus:border-[#006A63] transition-all cursor-pointer"
-                          {...register('industry_id')}
-                        >
-                          <option value="">-- Chọn lĩnh vực (Tùy chọn) --</option>
-                          <option value="1">Công nghệ thông tin &amp; Phần mềm</option>
-                          <option value="2">Tài chính - Ngân hàng - Fintech</option>
-                          <option value="3">Kỹ thuật Điện tử - Viễn thông</option>
-                          <option value="4">Truyền thông số &amp; Marketing</option>
-                          <option value="5">Lĩnh vực sản xuất / Khác</option>
-                        </select>
+                        <div className="w-full px-3.5 py-2.5 bg-slate-50 border border-dashed border-[#CBD5E1] rounded-xl text-xs text-[#64748B] flex items-center justify-between min-h-[42px]">
+                          <span>Cập nhật trong Hồ sơ doanh nghiệp sau khi duyệt</span>
+                          <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">Tự động đối soát</span>
+                        </div>
                       </div>
 
                       {/* Website công ty */}

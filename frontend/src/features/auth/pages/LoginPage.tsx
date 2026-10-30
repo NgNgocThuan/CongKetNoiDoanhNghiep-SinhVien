@@ -24,8 +24,8 @@ import { LoadingState } from '@/components/common/States'
 import { toApiError } from '@/lib/api-error'
 
 const schema = z.object({
-  email: z.string().trim().email('Vui lòng nhập địa chỉ email hợp lệ.'),
-  password: z.string().min(1, 'Vui lòng nhập mật khẩu.'),
+  email: z.string().trim().email('Nhập địa chỉ email hợp lệ.'),
+  password: z.string().min(1, 'Nhập mật khẩu.'),
   remember: z.boolean().optional(),
 })
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<Fields>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '', remember: true },
+    defaultValues: { email: '', password: '', remember: false },
   })
 
   if (auth.status === 'loading') {
@@ -63,7 +63,11 @@ export default function LoginPage() {
   const onSubmit = async (values: Fields) => {
     setBanner(null)
     try {
-      const user = await auth.login({ email: values.email, password: values.password })
+      const user = await auth.login({
+        email: values.email,
+        password: values.password,
+        remember: values.remember,
+      })
       const home = roleHome[user.role]
       const from: unknown = (location.state as { from?: unknown } | null)?.from
       const target = typeof from === 'string' && (from === home || from.startsWith(home + '/')) ? from : home
@@ -293,6 +297,7 @@ export default function LoginPage() {
                   <input
                     id="email"
                     type="email"
+                    aria-label="Địa chỉ email"
                     autoComplete="username"
                     placeholder="tennguoidung@school.edu.vn hoặc hr@company.com"
                     className={`w-full pl-10 pr-3.5 py-3 rounded-xl border ${
@@ -330,6 +335,7 @@ export default function LoginPage() {
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
+                    aria-label="Mật khẩu"
                     autoComplete="current-password"
                     placeholder="Nhập mật khẩu của bạn"
                     className={`w-full pl-10 pr-11 py-3 rounded-xl border ${
@@ -380,16 +386,15 @@ export default function LoginPage() {
               </div>
             </form>
 
-            {/* ĐĂNG KÝ DOANH NGHIỆP MỚI */}
+            {/* FOOTER LIÊN KẾT ĐĂNG KÝ DOANH NGHIỆP */}
             <div className="mt-6 pt-5 border-t border-[#E2E8F0] text-center">
               <p className="text-xs text-[#444653] m-0">
                 Bạn là đối tác tuyển dụng mới?{' '}
                 <Link
                   to="/register-company"
-                  className="font-semibold text-[#006A63] hover:text-[#0F766E] underline ml-1 inline-flex items-center gap-0.5"
+                  className="font-bold text-[#006A63] hover:underline inline-flex items-center gap-1 ml-1"
                 >
-                  Đăng ký tài khoản Doanh nghiệp
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  Đăng ký tài khoản Doanh nghiệp <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </p>
               <p className="text-[11px] text-gray-400 mt-2 mb-0">
@@ -398,17 +403,15 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* THÔNG TIN TRỢ GIÚP PHÍA DƯỚI */}
-          <div className="mt-6 text-center text-xs text-[#444653] flex items-center justify-center gap-4 flex-wrap">
-            <Link to="/activate" className="hover:text-[#00288E] transition-colors flex items-center gap-1">
-              <HelpCircle className="w-3.5 h-3.5 text-gray-400" />
-              Hướng dẫn kích hoạt tài khoản
+          {/* TRỢ GIÚP DƯỚI CARD */}
+          <div className="mt-6 flex items-center justify-center gap-6 text-xs text-gray-500">
+            <Link to="/activate" className="hover:text-[#00288E] flex items-center gap-1.5 transition-colors">
+              <HelpCircle className="w-3.5 h-3.5" /> Hướng dẫn kích hoạt tài khoản
             </Link>
             <span className="text-gray-300">•</span>
-            <span className="flex items-center gap-1 text-gray-500">
-              <PhoneCall className="w-3.5 h-3.5 text-gray-400" />
-              Hỗ trợ kỹ thuật Phòng Đào tạo
-            </span>
+            <a href="tel:19001000" className="hover:text-[#00288E] flex items-center gap-1.5 transition-colors">
+              <PhoneCall className="w-3.5 h-3.5" /> Hỗ trợ kỹ thuật Phòng Đào tạo
+            </a>
           </div>
         </div>
       </div>

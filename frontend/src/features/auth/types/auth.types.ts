@@ -21,6 +21,7 @@ export type TokenPair = z.infer<typeof tokenSchema>
 export interface LoginInput {
   email: string
   password: string
+  remember?: boolean
 }
 export interface RegisterCompanyInput {
   email: string

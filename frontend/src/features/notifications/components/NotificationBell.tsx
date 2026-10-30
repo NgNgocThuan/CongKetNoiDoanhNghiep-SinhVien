@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  AlertCircle,
   Bell,
   Briefcase,
   Building,
@@ -11,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useAuth, roleHome } from '@/features/auth'
+import { toApiError } from '@/lib/api-error'
 import { notificationsApi } from '../api/notifications.api'
 import type { Notification } from '../api/notifications.api'
 import { getNotificationTargetUrl } from '../lib/notification-navigation'
@@ -20,6 +22,7 @@ export function NotificationBell() {
   const navigate = useNavigate()
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Query đếm số lượng chưa đọc
@@ -41,7 +44,11 @@ export function NotificationBell() {
   const markReadMutation = useMutation({
     mutationFn: (id: number) => notificationsApi.read(id),
     onSuccess: () => {
+      setActionError(null)
       void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    onError: (err: unknown) => {
+      setActionError(toApiError(err).message || 'Không thể đánh dấu thông báo đã đọc.')
     },
   })
 
@@ -49,7 +56,11 @@ export function NotificationBell() {
   const markAllMutation = useMutation({
     mutationFn: () => notificationsApi.readAll(),
     onSuccess: () => {
+      setActionError(null)
       void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    onError: (err: unknown) => {
+      setActionError(toApiError(err).message || 'Không thể đánh dấu tất cả đã đọc.')
     },
   })
 
@@ -87,8 +98,13 @@ export function NotificationBell() {
   const notifications = listQuery.data?.items?.slice(0, 5) ?? []
 
   const handleNotificationClick = async (item: Notification) => {
+    setActionError(null)
     if (!item.is_read) {
-      await markReadMutation.mutateAsync(item.id)
+      try {
+        await markReadMutation.mutateAsync(item.id)
+      } catch (err: unknown) {
+        setActionError(toApiError(err).message || 'Không thể đánh dấu thông báo đã đọc.')
+      }
     }
     setOpen(false)
     const targetUrl = getNotificationTargetUrl(item, user.role)
@@ -110,7 +126,10 @@ export function NotificationBell() {
       {/* Nút Chuông thông báo */}
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen(!open)
+          setActionError(null)
+        }}
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={unreadCount > 0 ? `Thông báo, ${unreadCount} chưa đọc` : 'Thông báo'}
@@ -155,10 +174,36 @@ export function NotificationBell() {
             )}
           </div>
 
-          {/* Quick List Body */}
+          {/* Action Error Banner nếu có lỗi thao tác */}
+          {actionError && (
+            <div className="px-3.5 py-2 bg-rose-50 text-rose-700 text-xs border-b border-rose-100 flex items-center justify-between">
+              <span className="truncate">{actionError}</span>
+              <button
+                type="button"
+                onClick={() => setActionError(null)}
+                className="text-rose-500 hover:text-rose-700 font-bold ml-2 bg-transparent border-0 cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Quick List Body - Phân biệt rõ: Loading -> Error -> Empty -> Success */}
           <div className="divide-y divide-slate-100 max-h-[360px] overflow-y-auto">
             {listQuery.isPending ? (
               <div className="p-6 text-center text-xs text-slate-500">Đang tải thông báo…</div>
+            ) : listQuery.isError ? (
+              <div className="p-6 text-center text-xs text-rose-600 bg-rose-50/40">
+                <AlertCircle className="w-6 h-6 text-rose-500 mx-auto mb-2" />
+                <p className="font-semibold m-0">{toApiError(listQuery.error).message || 'Không thể tải thông báo'}</p>
+                <button
+                  type="button"
+                  onClick={() => void listQuery.refetch()}
+                  className="mt-2.5 px-3 py-1 bg-white border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-50 cursor-pointer shadow-2xs"
+                >
+                  Thử lại
+                </button>
+              </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-500">
                 <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />

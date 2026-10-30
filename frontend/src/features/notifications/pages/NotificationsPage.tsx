@@ -10,6 +10,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { useAuth } from '@/features/auth'
+import { toApiError } from '@/lib/api-error'
 import { notificationsApi } from '../api/notifications.api'
 import type { Notification } from '../api/notifications.api'
 import { getNotificationTargetUrl } from '../lib/notification-navigation'
@@ -51,7 +52,11 @@ export default function NotificationsPage() {
 
   const handleAction = async (item: Notification) => {
     if (!item.is_read) {
-      await readMutation.mutateAsync(item.id)
+      try {
+        await readMutation.mutateAsync(item.id)
+      } catch {
+        /* Bỏ qua lỗi mutation đơn lẻ để vẫn chuyển hướng */
+      }
     }
     const targetUrl = getNotificationTargetUrl(item, user?.role)
     navigate(targetUrl)
@@ -107,11 +112,11 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 py-6 px-4 sm:px-6">
-      {/* Hero Title & Operations Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#131B2E] tracking-tight m-0">
               Trung tâm Thông báo
             </h1>
@@ -184,7 +189,7 @@ export default function NotificationsPage() {
       <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden">
         {readMutation.isError && (
           <div className="p-3 bg-red-50 text-red-700 text-xs border-b border-red-100">
-            {readMutation.error.message}
+            {toApiError(readMutation.error).message}
           </div>
         )}
 
@@ -195,7 +200,7 @@ export default function NotificationsPage() {
         ) : query.isError ? (
           <div className="py-12">
             <ErrorState
-              message={query.error.message}
+              message={toApiError(query.error).message}
               onRetry={() => void query.refetch()}
             />
           </div>

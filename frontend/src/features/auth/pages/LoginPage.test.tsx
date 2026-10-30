@@ -68,6 +68,69 @@ describe('LoginPage', () => {
     expect(pwdInput).toHaveAttribute('type', 'password')
   })
 
+  it('submits with remember=false when checkbox is unchecked', async () => {
+    mockLogin.mockResolvedValueOnce({
+      id: 1,
+      email: 'user@school.edu.vn',
+      role: 'STUDENT',
+      status: 'ACTIVE',
+    })
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    )
+
+    await userEvent.type(screen.getByPlaceholderText(/tennguoidung@school.edu.vn/i), 'user@school.edu.vn')
+    await userEvent.type(screen.getByPlaceholderText(/Nhập mật khẩu của bạn/i), 'Password@123')
+
+    const rememberCheckbox = screen.getByRole('checkbox')
+    expect(rememberCheckbox).not.toBeChecked()
+
+    await userEvent.click(screen.getByRole('button', { name: /Đăng nhập/i }))
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        email: 'user@school.edu.vn',
+        password: 'Password@123',
+        remember: false,
+      })
+    })
+  })
+
+  it('submits with remember=true when checkbox is checked', async () => {
+    mockLogin.mockResolvedValueOnce({
+      id: 1,
+      email: 'user@school.edu.vn',
+      role: 'STUDENT',
+      status: 'ACTIVE',
+    })
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    )
+
+    await userEvent.type(screen.getByPlaceholderText(/tennguoidung@school.edu.vn/i), 'user@school.edu.vn')
+    await userEvent.type(screen.getByPlaceholderText(/Nhập mật khẩu của bạn/i), 'Password@123')
+
+    const rememberCheckbox = screen.getByRole('checkbox')
+    await userEvent.click(rememberCheckbox)
+    expect(rememberCheckbox).toBeChecked()
+
+    await userEvent.click(screen.getByRole('button', { name: /Đăng nhập/i }))
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        email: 'user@school.edu.vn',
+        password: 'Password@123',
+        remember: true,
+      })
+    })
+  })
+
   it('displays PENDING_APPROVAL warning banner when account is waiting for school approval', async () => {
     mockLogin.mockRejectedValueOnce(
       new ApiError('Tài khoản đang chờ nhà trường phê duyệt', 403, 'ACCOUNT_PENDING_APPROVAL')
