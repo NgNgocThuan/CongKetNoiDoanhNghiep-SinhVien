@@ -1,16 +1,41 @@
-"""AI Job Matching. Người phụ trách: TV5.
+from fastapi import APIRouter, BackgroundTasks
 
-Endpoints cần làm:
-  - GET /matching/jobs/recommended — sinh viên: gợi ý việc làm xếp hạng theo score; kèm matched_skills, missing_skills, explanation; chỉ tin APPROVED, còn hạn, đạt điều kiện bắt buộc
-  - GET /matching/jobs/{job_id}/score — điểm phù hợp của tôi với một tin cụ thể
-  - GET /matching/jobs/{job_id}/candidates — doanh nghiệp: gợi ý ứng viên cho tin của mình; CHỈ sinh viên is_open_to_work; ẨN GPA/liên hệ/thành tích nếu show_* = false
-  - POST /matching/recompute — admin: tính lại hàng loạt (nền)
-
-Khuôn mẫu: xem app/routers/catalog.py (router mỏng) + app/services/catalog_service.py (nghiệp vụ).
-Router chỉ khai báo endpoint + quyền + response_model, gọi service, KHÔNG truy vấn DB trực tiếp.
-"""
-from fastapi import APIRouter
+from app.dependencies import AdminUser, CurrentCompany, CurrentStudent, DbSession, Pagination
+from app.schemas.common import Message, Page
+from app.schemas.matching import CandidateRecommendation, JobRecommendation, MatchResult
+from app.services import matching_service as service
 
 router = APIRouter(prefix="/matching", tags=["AI Matching"])
 
-# TODO(TV5): triển khai các endpoint ở docstring trên.
+
+@router.get(
+    "/jobs/recommended", response_model=Page[JobRecommendation], summary="Gợi ý việc làm phù hợp"
+)
+def recommend_jobs(db: DbSession, student: CurrentStudent, pagination: Pagination):
+    return service.recommend_jobs_for_student(db, student, pagination)
+
+
+@router.get(
+    "/jobs/{job_id}/score", response_model=MatchResult, summary="Điểm phù hợp với tin tuyển dụng"
+)
+def score(job_id: int, db: DbSession, student: CurrentStudent):
+    return service.score_for_student(db, student, job_id)
+
+
+@router.get(
+    "/jobs/{job_id}/candidates",
+    response_model=Page[CandidateRecommendation],
+    summary="Gợi ý ứng viên có bảo vệ quyền riêng tư",
+)
+def recommend_candidates(
+    job_id: int, db: DbSession, company: CurrentCompany, pagination: Pagination
+):
+    return service.recommend_candidates_for_job(db, company, job_id, pagination)
+
+
+@router.post(
+    "/recompute", response_model=Message, status_code=202, summary="Tính lại matching ở nền"
+)
+def recompute(_: AdminUser, background_tasks: BackgroundTasks):
+    background_tasks.add_task(service.recompute_in_background)
+    return {"message": "Đã xếp hàng tính lại matching"}

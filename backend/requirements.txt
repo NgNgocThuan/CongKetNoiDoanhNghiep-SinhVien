@@ -12,3 +12,6 @@ bcrypt>=4.1
 python-multipart>=0.0.9
 openpyxl>=3.1           # import/export Excel
 httpx>=0.27             # gọi API NLP (GPT/Gemini/Claude)
+
+pypdf>=5.0             # TV5: extract text from uploaded PDF CVs
+reportlab>=4.0         # TV5: export aggregate PDF reports and charts
