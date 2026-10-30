@@ -20,6 +20,9 @@ export function toApiError(error: unknown): ApiError {
   if (record(body) && record(body.error) && typeof body.error.message === 'string') {
     return new ApiError(body.error.message, status, typeof body.error.code === 'string' ? body.error.code : 'API_ERROR')
   }
+  if (record(body) && record(body.detail) && typeof body.detail.message === 'string') {
+    return new ApiError(body.detail.message, status, typeof body.detail.code === 'string' ? body.detail.code : 'API_ERROR')
+  }
   if (record(body) && Array.isArray(body.detail)) {
     const fields: Record<string, string> = {}
     for (const issue of body.detail) {
@@ -29,7 +32,15 @@ export function toApiError(error: unknown): ApiError {
     }
     return new ApiError('Vui lòng kiểm tra lại thông tin đã nhập.', status, 'VALIDATION_ERROR', fields)
   }
-  if (record(body) && typeof body.detail === 'string') return new ApiError(body.detail, status, 'HTTP_ERROR')
+  if (record(body) && typeof body.detail === 'string') {
+    const defaultCode = status === 403 ? 'FORBIDDEN' : status === 401 ? 'UNAUTHORIZED' : status === 429 ? 'TOO_MANY_ATTEMPTS' : 'HTTP_ERROR'
+    return new ApiError(body.detail, status, typeof body.code === 'string' ? body.code : defaultCode)
+  }
+  if (record(body) && typeof body.message === 'string') {
+    const defaultCode = status === 403 ? 'FORBIDDEN' : status === 401 ? 'UNAUTHORIZED' : status === 429 ? 'TOO_MANY_ATTEMPTS' : 'API_ERROR'
+    return new ApiError(body.message, status, typeof body.code === 'string' ? body.code : defaultCode)
+  }
   if (!status) return new ApiError('Không thể kết nối máy chủ. Vui lòng kiểm tra kết nối và thử lại.', null, 'NETWORK_ERROR')
-  return new ApiError(status >= 500 ? 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.' : 'Không thể hoàn tất yêu cầu.', status, 'HTTP_ERROR')
+  const defaultCode = status === 403 ? 'FORBIDDEN' : status === 401 ? 'UNAUTHORIZED' : status === 429 ? 'TOO_MANY_ATTEMPTS' : 'HTTP_ERROR'
+  return new ApiError(status >= 500 ? 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.' : 'Không thể hoàn tất yêu cầu.', status, defaultCode)
 }

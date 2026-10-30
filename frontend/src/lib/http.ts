@@ -29,16 +29,20 @@ export function refreshSession(): Promise<void> {
     .finally(() => { refreshPromise = null })
   return refreshPromise
 }
+
 http.interceptors.request.use(config => {
   const request = config as RetryConfig
   request._identity ??= session.identity
   if (session.accessToken) config.headers.set('Authorization', 'Bearer ' + session.accessToken)
   return config
 })
+
 http.interceptors.response.use(response => response, async (error: unknown) => {
   if (!axios.isAxiosError(error)) throw toApiError(error)
   const config = error.config as RetryConfig | undefined
   if (error.response?.status !== 401 || !config) throw toApiError(error)
+  const url = config.url ?? ''
+  if (url.includes('/auth/login') || url.includes('/auth/refresh')) throw toApiError(error)
   if (config._identity !== session.identity) throw new ApiError('Phiên đăng nhập đã thay đổi.', 401, 'SESSION_CHANGED')
   if (config._retried) { expireSession(); throw toApiError(error) }
   if (!session.refreshToken) { expireSession(); throw toApiError(error) }
@@ -48,4 +52,5 @@ http.interceptors.response.use(response => response, async (error: unknown) => {
   config.headers.set('Authorization', 'Bearer ' + session.accessToken)
   return http.request(config)
 })
+
 publicHttp.interceptors.response.use(response => response, (error: unknown) => Promise.reject(toApiError(error)))
