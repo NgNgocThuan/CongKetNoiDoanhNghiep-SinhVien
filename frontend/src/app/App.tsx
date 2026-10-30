@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { JobPostingsPage } from '../features/company-jobs/components/JobPostingsPage';
 import { CompanyProfilePage } from '../features/company-profile/components/CompanyProfilePage';
 import { InvitedApplicationsPage } from '../features/company-invitations/components/InvitedApplicationsPage';

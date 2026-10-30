@@ -36,7 +36,7 @@ interface KanbanApplicationsPageProps {
     onRouteChange?: (route: string) => void;
 }
 
-export const KanbanApplicationsPage: React.FC<KanbanApplicationsPageProps> = ({ currentRoute = 'QLUV', onRouteChange }) => {
+export const KanbanApplicationsPage: React.FC<KanbanApplicationsPageProps> = ({ onRouteChange }) => {
     // 1. Bắt buộc chọn tin tuyển dụng
     const jobs: Job[] = [
         { id: 'JOB-FE-2026', title: 'Thực tập sinh Frontend React/TypeScript (Đợt Thu 2026)', code: '#JOB-FE-2026', applicantsCount: 28 },
@@ -121,7 +121,7 @@ export const KanbanApplicationsPage: React.FC<KanbanApplicationsPageProps> = ({ 
     const [statusNoteInput, setStatusNoteInput] = useState('');
 
     // Phân trang
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage] = useState(1);
     const pageSize = 5;
 
     const filteredCandidates = candidates.filter(c => {
@@ -193,35 +193,35 @@ export const KanbanApplicationsPage: React.FC<KanbanApplicationsPageProps> = ({ 
 
                     <nav className="flex flex-col gap-1 mt-1 text-xs text-slate-600">
                         <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sinh viên</div>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">search</span>Tìm việc làm</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">auto_awesome</span>Gợi ý việc làm</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">bookmark_border</span>Việc đã lưu</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">person_outline</span>Hồ sơ cá nhân</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">description</span>Quản lý CV</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">send</span>Đơn ứng tuyển</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">mail_outline</span>Lời mời phỏng vấn</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">school</span>Theo dõi thực tập</a>
+                        <a href="#tim-viec" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">search</span>Tìm việc làm</a>
+                        <a href="#goi-y" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">auto_awesome</span>Gợi ý việc làm</a>
+                        <a href="#da-luu" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">bookmark_border</span>Việc đã lưu</a>
+                        <a href="#ho-so" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">person_outline</span>Hồ sơ cá nhân</a>
+                        <a href="#cv" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">description</span>Quản lý CV</a>
+                        <a href="#ung-tuyen" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">send</span>Đơn ứng tuyển</a>
+                        <a href="#phong-van" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">mail_outline</span>Lời mời phỏng vấn</a>
+                        <a href="#thuc-tap" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">school</span>Theo dõi thực tập</a>
 
                         <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Doanh nghiệp</div>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">post_add</span>Tin tuyển dụng</a>
-                        <a href="#" onClick={() => onRouteChange && onRouteChange('QLUV')} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-[#1e40af] font-bold border-l-4 border-[#1e40af]">
+                        <a href="#tin-tuyen-dung" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">post_add</span>Tin tuyển dụng</a>
+                        <button onClick={() => onRouteChange && onRouteChange('QLUV')} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-[#1e40af] font-bold border-l-4 border-[#1e40af] text-left">
                             <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
                             <span>Quản lý ứng viên</span>
                             <span className="ml-auto px-2 py-0.5 rounded-full bg-blue-100 text-[#1e40af] text-[10px]">28</span>
-                        </a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">person_search</span>Gợi ý ứng viên</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">forward_to_inbox</span>Lời mời đã gửi</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">domain</span>Hồ sơ công ty</a>
+                        </button>
+                        <a href="#goi-y-uv" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">person_search</span>Gợi ý ứng viên</a>
+                        <a href="#loi-moi" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">forward_to_inbox</span>Lời mời đã gửi</a>
+                        <a href="#ho-so-cty" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">domain</span>Hồ sơ công ty</a>
 
                         <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Nhà trường / Admin</div>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">trending_up</span>Tổng quan hệ thống</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">badge</span>Quản lý sinh viên</a>
+                        <a href="#tong-quan" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">trending_up</span>Tổng quan hệ thống</a>
+                        <a href="#ql-sv" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">badge</span>Quản lý sinh viên</a>
                     </nav>
                 </div>
 
                 <div className="pt-3 border-t border-slate-200 flex flex-col gap-1 text-xs">
-                    <a href="#" className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">settings</span>Cài đặt hệ thống</a>
-                    <a href="#" className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">help</span>Hỗ trợ & Trợ giúp</a>
+                    <a href="#cai-dat" className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">settings</span>Cài đặt hệ thống</a>
+                    <a href="#ho-tro" className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100"><span className="material-symbols-outlined text-slate-400 text-base">help</span>Hỗ trợ & Trợ giúp</a>
                     <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                         <span className="text-[10px] text-slate-500 font-medium">Đồng bộ Talent API: <strong className="text-slate-700">Đã kết nối</strong></span>
@@ -435,7 +435,7 @@ export const KanbanApplicationsPage: React.FC<KanbanApplicationsPageProps> = ({ 
 
                     {/* ==================== SLIDE-OVER DETAIL DRAWER (ĐÃ CÓ NÚT X ĐÓNG) ==================== */}
                     {isDrawerOpen && (
-                        <aside className="w-[540px] shrink-0 h-full bg-white border-l border-slate-200 shadow-2xl flex flex-col z-20 overflow-hidden animate-in slide-in-from-right duration-200">
+                        <aside className="w-[540px] shrink-0 h-full bg-white border-l border-slate-200 shadow-2xl flex flex-col z-20 overflow-hidden">
                             <div className="p-5 border-b border-slate-200 bg-white flex items-start justify-between">
                                 <div className="flex items-start gap-3">
                                     <div className="w-12 h-12 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-[#1e40af] font-bold">LH</div>
