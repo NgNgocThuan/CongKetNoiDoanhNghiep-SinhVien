@@ -68,9 +68,10 @@ def refresh_tokens(
 def logout(
     token: Annotated[str, Depends(oauth2_scheme)],
     _: CurrentUser,
+    db: DbSession,
     data: Optional[LogoutRequest] = None,
 ) -> Message:
-    auth_service.logout(token, data.refresh_token if data else None)
+    auth_service.logout(token, data.refresh_token if data else None, db=db)
     return Message(message="Đăng xuất thành công")
 
 

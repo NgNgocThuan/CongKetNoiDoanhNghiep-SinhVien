@@ -120,8 +120,8 @@ def login(db: Session, *, email: str, password: str) -> TokenPair:
 
 
 def refresh_tokens(db: Session, refresh_token: str) -> TokenPair:
-    """Đổi refresh token lấy cặp token mới (Refresh Token Rotation)."""
-    payload = decode_token(refresh_token, expected_type="refresh")
+    """Đổi refresh token lấy cặp token mới (Refresh Token Rotation lưu DB dùng chung)."""
+    payload = decode_token(refresh_token, expected_type="refresh", db=db)
     user = db.get(User, int(payload["sub"]))
     if user is None:
         raise UnauthorizedError("Tài khoản không tồn tại")
@@ -131,8 +131,8 @@ def refresh_tokens(db: Session, refresh_token: str) -> TokenPair:
     if user.status != UserStatus.ACTIVE:
         raise ForbiddenError("Tài khoản chưa hoạt động", code="ACCOUNT_NOT_ACTIVE")
 
-    # Xoay vòng Refresh Token: thu hồi token hiện tại
-    revoke_token(refresh_token)
+    # Xoay vòng Refresh Token: thu hồi token hiện tại vào DB dùng chung
+    revoke_token(refresh_token, db=db)
 
     return TokenPair(
         access_token=create_access_token(user.id, user.role.value),
@@ -140,11 +140,11 @@ def refresh_tokens(db: Session, refresh_token: str) -> TokenPair:
     )
 
 
-def logout(access_token: str, refresh_token: Optional[str] = None) -> None:
-    """Đăng xuất: thu hồi access_token và refresh_token (nếu có)."""
-    revoke_token(access_token)
+def logout(access_token: str, refresh_token: Optional[str] = None, db: Optional[Session] = None) -> None:
+    """Đăng xuất: thu hồi access_token và refresh_token (lưu vào DB dùng chung có thời hạn exp)."""
+    revoke_token(access_token, db=db)
     if refresh_token:
-        revoke_token(refresh_token)
+        revoke_token(refresh_token, db=db)
 
 
 def get_me(db: Session, user: User) -> User:

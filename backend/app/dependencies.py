@@ -28,7 +28,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: DbSession) -> User:
-    payload = decode_token(token, expected_type="access")
+    payload = decode_token(token, expected_type="access", db=db)
     user = db.get(User, int(payload["sub"]))
     if user is None:
         raise UnauthorizedError("Tài khoản không tồn tại")
