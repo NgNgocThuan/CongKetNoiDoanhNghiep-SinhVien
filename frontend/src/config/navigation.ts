@@ -7,7 +7,7 @@ const item = (id: string, path: string, title: string, description: string, owne
 export const features: Record<Role, FeatureItem[]> = {
   STUDENT: [
     item('student-jobs', 'jobs', 'Tìm việc', 'Khám phá cơ hội phù hợp với mục tiêu nghề nghiệp.', 'Việt Anh', BriefcaseBusiness),
-    item('matching-jobs', 'recommended', 'Gợi ý phù hợp', 'Tìm hướng đi từ kỹ năng và kinh nghiệm của bạn.', 'Thuận', Sparkles),
+    item('matching-jobs', 'recommended', 'Gợi ý phù hợp', 'Tìm hướng đi từ kỹ năng và kinh nghiệm của bạn.', 'Thuận', Sparkles, true),
     item('saved-jobs', 'saved-jobs', 'Việc đã lưu', 'Giữ lại những cơ hội bạn quan tâm.', 'Việt Anh', Heart),
     item('student-profile', 'profile', 'Hồ sơ của tôi', 'Kể câu chuyện học tập và năng lực của bạn.', 'Việt Anh', GraduationCap),
     item('student-cvs', 'cvs', 'CV của tôi', 'Chuẩn bị hồ sơ cho cơ hội tiếp theo.', 'Việt Anh', FileText),
@@ -18,7 +18,7 @@ export const features: Record<Role, FeatureItem[]> = {
   COMPANY: [
     item('company-jobs', 'jobs', 'Tin tuyển dụng', 'Quản lý nội dung và quy trình gửi duyệt tin.', 'Khôi', BriefcaseBusiness),
     item('company-applications', 'applications', 'Quản lý ứng viên', 'Theo dõi hồ sơ và các bước tuyển dụng.', 'Khôi', Users),
-    item('matching-candidates', 'candidates', 'Gợi ý ứng viên', 'Kết nối với kỹ năng mà đội ngũ đang tìm kiếm.', 'Thuận', Sparkles),
+    item('matching-candidates', 'candidates', 'Gợi ý ứng viên', 'Kết nối với kỹ năng mà đội ngũ đang tìm kiếm.', 'Thuận', Sparkles, true),
     item('company-invitations', 'invitations', 'Lời mời đã gửi', 'Theo dõi những kết nối bạn đã mở ra.', 'Khôi', Send),
     item('company-profile', 'profile', 'Hồ sơ doanh nghiệp', 'Giới thiệu môi trường và giá trị của công ty.', 'Khôi', Building2),
   ],

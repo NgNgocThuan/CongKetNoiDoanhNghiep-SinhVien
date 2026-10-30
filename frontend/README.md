@@ -24,6 +24,8 @@ trong ứng dụng.
 - Layout desktop/mobile, điều hướng riêng ba vai trò, tokens và component chung.
 - Luồng đăng nhập, khôi phục phiên, đăng xuất, đăng ký doanh nghiệp, mật khẩu.
 - Thông báo và một trang mẫu danh sách khoa gọi API thật.
+- Hai trang gợi ý việc/ứng viên đã nối API và thao tác lưu, ứng tuyển, gửi lời mời.
+  Xem [bàn giao matching](docs/MATCHING.md).
 - Menu nghiệp vụ còn lại hiện trang “Đang phát triển” để thành viên tiếp tục làm.
   Danh mục mẫu mới có danh sách khoa, chưa phải toàn bộ chức năng danh mục.
 - Kiểm tra trình duyệt dùng API giả lập trong thư mục e2e; chưa xác nhận dịch vụ
