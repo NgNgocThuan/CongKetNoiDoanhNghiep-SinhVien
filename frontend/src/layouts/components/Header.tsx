@@ -10,7 +10,7 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [signingOut, setSigningOut] = useState(false)
   if (!user) return null
   const base = roleHome[user.role]
-  const current = features[user.role].find(feature => pathname === base + '/' + feature.path)?.title || (pathname.endsWith('/settings') ? 'Tài khoản & bảo mật' : pathname.endsWith('/notifications') ? 'Thông báo' : 'Trang chủ')
+  const current = features[user.role].find(feature => (pathname === base + '/' + feature.path || pathname.startsWith(base + '/' + feature.path + '/')))?.title || (pathname.endsWith('/settings') ? 'Tài khoản & bảo mật' : pathname.endsWith('/notifications') ? 'Thông báo' : 'Trang chủ')
   async function signOut() {
     setSigningOut(true)
     try { await logout() } catch { /* Local session is already cleared even if offline. */ }

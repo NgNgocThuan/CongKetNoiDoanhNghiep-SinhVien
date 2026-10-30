@@ -41,10 +41,10 @@ for (const role of ['STUDENT', 'COMPANY', 'ADMIN'] as const) {
     }
   })
 }
-test('admin catalog sample fetches and renders a paginated response', async ({ page }) => {
+test('admin catalog fetches and renders a paginated response', async ({ page }) => {
   await login(page, 'ADMIN')
   await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('link', { name: 'Danh mục', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Danh mục khoa' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Danh mục', exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'Công nghệ thông tin' })).toBeVisible()
   await page.screenshot({ path: 'test-results/catalog-desktop.png', fullPage: true })
 })
