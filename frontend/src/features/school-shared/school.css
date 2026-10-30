@@ -1,0 +1,11 @@
+.school-workspace { min-width: 0; }
+.school-workspace .sc-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.school-page-meta { margin: -8px 0 24px; }
+.school-workspace .ant-table-wrapper { min-width: 0; }
+.school-workspace .ant-steps { overflow-x: auto; padding-bottom: 8px; }
+@media (max-width: 760px) {
+  .school-workspace .sc-card { padding: 16px !important; }
+  .school-workspace .ant-table-pagination { flex-wrap: wrap; }
+  .school-workspace .ant-tabs-nav-list { max-width: 100%; }
+  .school-workspace .page-header__actions { width: 100%; }
+}

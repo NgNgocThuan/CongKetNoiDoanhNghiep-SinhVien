@@ -1,2 +1,5 @@
 export { useFaculties } from './hooks/useFaculties'
 export type { Faculty } from './types/catalog.types'
+export { useFaculties as useFacultyOptions, useMajors, useIndustries, useJobTypes, useSkillSearch } from './hooks'
+export { FacultySelect, MajorSelect, IndustrySelect, JobTypeSelect, SkillSelect } from './selectors'
+export type { Major, Industry, JobType, Skill, SkillAlias } from './types'
