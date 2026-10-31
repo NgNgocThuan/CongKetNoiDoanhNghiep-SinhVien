@@ -192,66 +192,76 @@ try {
   }
   await page.goto(origin + '/student/profile')
   await page
-    .getByLabel('Giới thiệu bản thân', { exact: true })
+    .getByLabel('Giới thiệu', { exact: true })
     .fill('Hồ sơ kiểm tra ' + stamp)
-  await page.getByRole('button', { name: 'Lưu thay đổi', exact: true }).click()
+  await page
+    .getByRole('button', {
+      name: 'Lưu thông tin & quyền riêng tư',
+      exact: true,
+    })
+    .click()
   await expect(
-    page.getByText('Đã lưu thông tin và quyền riêng tư.', { exact: true }),
+    page.getByText('Đã lưu thay đổi.', { exact: true }),
   ).toBeVisible()
   await page.reload()
-  await expect(
-    page.getByLabel('Giới thiệu bản thân', { exact: true }),
-  ).toHaveValue('Hồ sơ kiểm tra ' + stamp)
+  await expect(page.getByLabel('Giới thiệu', { exact: true })).toHaveValue(
+    'Hồ sơ kiểm tra ' + stamp,
+  )
   await page.goto(origin + '/student/cvs')
   await page.getByRole('button', { name: 'Tạo CV online', exact: true }).click()
   await expect(page.locator('input[type="file"]')).toHaveCount(0)
-  await page.getByLabel('Tên CV').fill('CV kiểm tra ' + stamp)
+  await page.getByLabel('Tiêu đề CV').fill('CV kiểm tra ' + stamp)
   await page
-    .getByLabel('Giới thiệu bản thân')
+    .getByLabel('Giới thiệu')
     .fill('Ứng tuyển vị trí phát triển phần mềm.')
   await page
-    .getByLabel('Kỹ năng (phân cách bằng dấu phẩy)')
-    .fill('React, TypeScript')
+    .getByLabel('Kỹ năng (mỗi dòng một kỹ năng)')
+    .fill('React\nTypeScript')
   await page
     .getByRole('dialog')
-    .getByRole('button', { name: 'Lưu CV online', exact: true })
+    .getByRole('button', { name: 'Lưu CV', exact: true })
     .click()
   await expect(
     page.getByRole('heading', { name: 'CV kiểm tra ' + stamp, exact: true }),
   ).toBeVisible()
-  const cvCard = page
-    .locator('section.ws-panel')
-    .filter({
-      has: page.getByRole('heading', {
-        name: 'CV kiểm tra ' + stamp,
-        exact: true,
-      }),
-    })
+  const cvCard = page.locator('article.student-panel').filter({
+    has: page.getByRole('heading', {
+      name: 'CV kiểm tra ' + stamp,
+      exact: true,
+    }),
+  })
   await cvCard
     .getByRole('button', { name: 'Đặt mặc định', exact: true })
     .click()
-  await completeAction(page, 'Đặt CV mặc định')
   await expect(cvCard).toContainText('Mặc định')
-  await cvCard
+  const analysis = page
+    .locator('section.student-panel')
+    .filter({
+      has: page.getByRole('heading', {
+        name: 'Hiểu rõ thế mạnh của bạn',
+        exact: true,
+      }),
+    })
+  await analysis
     .getByRole('button', { name: 'Phân tích CV', exact: true })
     .click()
-  await expect(cvCard.getByRole('alert')).toBeVisible({ timeout: 30000 }) // AI deliberately unconfigured on this local demo.
+  await expect(analysis.getByRole('alert')).toBeVisible({ timeout: 30000 })
   await page.goto(origin + '/student/jobs?q=' + stamp)
   await page.getByRole('link', { name: 'Xem chi tiết', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: draft.title, exact: true }),
   ).toBeVisible()
-  await page.getByRole('button', { name: 'Ứng tuyển', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'Ứng tuyển ngay', exact: true })
+    .click()
   await page
     .getByLabel('Thư giới thiệu')
     .fill('Ứng tuyển từ giao diện với CV mới.')
   await page
     .getByRole('button', { name: 'Gửi đơn ứng tuyển', exact: true })
     .click()
-  await expect(
-    page.getByRole('heading', { name: 'Đã gửi đơn ứng tuyển' }),
-  ).toBeVisible()
-  await page.getByRole('button', { name: 'Hoàn tất', exact: true }).click()
+  await expect(page).toHaveURL(/\/student\/applications\/\d+$/)
+  await page.goto(origin + '/student/jobs/' + draft.id)
   await page
     .getByRole('button', { name: 'Báo cáo tin tuyển dụng', exact: true })
     .click()
@@ -259,12 +269,12 @@ try {
   await completeAction(page, 'Báo cáo vi phạm')
   await page.goto(origin + '/student/applications')
   await page
-    .locator('section.ws-panel')
+    .locator('article.student-panel')
     .filter({ hasText: draft.title })
-    .getByRole('link', { name: 'Chi tiết & lịch sử →' })
+    .getByRole('link', { name: 'Xem tiến trình →' })
     .click()
   await expect(
-    page.getByRole('heading', { name: 'Lịch sử xử lý', exact: true }),
+    page.getByRole('heading', { name: 'Lịch sử trạng thái', exact: true }),
   ).toBeVisible()
   await page.screenshot({
     path: path.join(output, 'student-application.png'),

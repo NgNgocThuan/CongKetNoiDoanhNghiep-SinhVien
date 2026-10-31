@@ -3,6 +3,21 @@
 Ngày cập nhật: 31/10/2026. Nhánh: integration/frontend-local.
 Không đẩy lên GitHub hoặc gộp main trong đợt thay đổi này.
 
+## Thay giao diện sinh viên bằng nhánh Việt Anh
+
+Đã tích hợp feature/fe-vietanh-student tại commit 7a023d4 theo yêu cầu người dùng.
+Các trang sinh viên hiện dùng student-jobs, student-profile, student-cvs,
+student-applications, student-invitations và student-internships của Việt Anh.
+Module student-workspace trước đó đã được bỏ; không đăng ký trùng route.
+Giữ matching, doanh nghiệp, nhà trường và các phần quản trị của bản tích hợp local.
+
+Các điều chỉnh khi ghép: CV chỉ ONLINE và bổ sung thông tin từ trường; nút lưu/bỏ lưu
+dùng chung matching; lời mời không tự gọi API ghi lượt xem tin; giữ nút báo cáo vi phạm;
+đồng bộ cache CV/matching và thông báo thành công khi lưu hồ sơ.
+
+Sau khi ghép: build/lint đạt, 61 unit test và 28 browser test đạt; luồng API thật
+trên SQLite demo đã kiểm tra cả ba vai trò và kích thước mobile.
+
 ## Quy ước giao diện
 
 Giữ StudentLayout, CompanyLayout và AdminLayout; dùng màu theo actor, font, khoảng cách,

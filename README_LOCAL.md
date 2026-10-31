@@ -41,6 +41,7 @@ Không xóa thư mục này nếu muốn giữ dữ liệu vừa thao tác.
 - feature/fe-phong-shared-frame 3459e21.
 - feature/fe-quang-auth c7ad6af (đã có các bản sửa sau review).
 - feature/fe-khoi-company b7d00d3.
+- feature/fe-vietanh-student 7a023d4: thay phần giao diện sinh viên do bản local tự tạo.
 
 Không đưa feature/phong-backend cũ vào bản này vì phần frontend đã được chuyển về
 khung chung trên nhánh fe-phong-shared-frame.

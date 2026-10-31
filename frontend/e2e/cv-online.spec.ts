@@ -89,17 +89,17 @@ test('CV uses read-only school data, only permits online creation and preserves 
       'input[name="gpa"],input[name="full_name"],input[type="file"]',
     ),
   ).toHaveCount(0)
-  await expect(dialog.getByLabel('Giới thiệu bản thân')).toHaveValue(
+  await expect(dialog.getByLabel('Giới thiệu', { exact: true })).toHaveValue(
     'Giới thiệu từ hồ sơ',
   )
   await expect(
-    dialog.getByLabel('Kỹ năng (phân cách bằng dấu phẩy)'),
+    dialog.getByLabel('Kỹ năng (mỗi dòng một kỹ năng)'),
   ).toHaveValue('React')
-  await dialog.getByLabel('Tên CV').fill('CV ứng tuyển React')
+  await dialog.getByLabel('Tiêu đề CV').fill('CV ứng tuyển React')
   await dialog
     .getByLabel('Dự án', { exact: true })
     .fill('Ứng dụng quản lý thực tập')
-  await dialog.getByRole('button', { name: 'Lưu CV online' }).click()
+  await dialog.getByRole('button', { name: 'Lưu CV' }).click()
   await expect(dialog).toBeHidden()
   expect(created).toHaveLength(1)
   expect(created[0]).toMatchObject({
@@ -107,7 +107,7 @@ test('CV uses read-only school data, only permits online creation and preserves 
     content_json: { skills: ['React'], projects: 'Ứng dụng quản lý thực tập' },
   })
   expect(created[0].content_json).not.toHaveProperty('official')
-  await page.getByRole('button', { name: 'Xem CV', exact: true }).click()
+  await page.getByRole('button', { name: 'Xem trước', exact: true }).click()
   const preview = page.getByRole('dialog', {
     name: 'CV ứng tuyển React',
     exact: true,
