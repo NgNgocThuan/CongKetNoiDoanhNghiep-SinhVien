@@ -6,14 +6,14 @@ export interface FeatureItem { id: string; path: string; title: string; descript
 const item = (id: string, path: string, title: string, description: string, owner: string, icon: LucideIcon, ready = false): FeatureItem => ({ id, path, title, description, owner, icon, ready })
 export const features: Record<Role, FeatureItem[]> = {
   STUDENT: [
-    item('student-jobs', 'jobs', 'Tìm việc', 'Khám phá cơ hội phù hợp với mục tiêu nghề nghiệp.', 'Việt Anh', BriefcaseBusiness),
+    item('student-jobs', 'jobs', 'Tìm việc', 'Khám phá cơ hội phù hợp với mục tiêu nghề nghiệp.', 'Việt Anh', BriefcaseBusiness, true),
     item('matching-jobs', 'recommended', 'Gợi ý phù hợp', 'Tìm hướng đi từ kỹ năng và kinh nghiệm của bạn.', 'Thuận', Sparkles),
-    item('saved-jobs', 'saved-jobs', 'Việc đã lưu', 'Giữ lại những cơ hội bạn quan tâm.', 'Việt Anh', Heart),
-    item('student-profile', 'profile', 'Hồ sơ của tôi', 'Kể câu chuyện học tập và năng lực của bạn.', 'Việt Anh', GraduationCap),
-    item('student-cvs', 'cvs', 'CV của tôi', 'Chuẩn bị hồ sơ cho cơ hội tiếp theo.', 'Việt Anh', FileText),
-    item('student-applications', 'applications', 'Đơn ứng tuyển', 'Theo dõi từng bước trong hành trình ứng tuyển.', 'Việt Anh', ClipboardList),
-    item('student-invitations', 'invitations', 'Lời mời', 'Những kết nối mới từ doanh nghiệp.', 'Việt Anh', Mail),
-    item('student-internships', 'internships', 'Thực tập của tôi', 'Thông tin đợt thực tập và giảng viên hướng dẫn.', 'Việt Anh', BookOpen),
+    item('saved-jobs', 'saved-jobs', 'Việc đã lưu', 'Giữ lại những cơ hội bạn quan tâm.', 'Việt Anh', Heart, true),
+    item('student-profile', 'profile', 'Hồ sơ của tôi', 'Kể câu chuyện học tập và năng lực của bạn.', 'Việt Anh', GraduationCap, true),
+    item('student-cvs', 'cvs', 'CV của tôi', 'Chuẩn bị hồ sơ cho cơ hội tiếp theo.', 'Việt Anh', FileText, true),
+    item('student-applications', 'applications', 'Đơn ứng tuyển', 'Theo dõi từng bước trong hành trình ứng tuyển.', 'Việt Anh', ClipboardList, true),
+    item('student-invitations', 'invitations', 'Lời mời', 'Những kết nối mới từ doanh nghiệp.', 'Việt Anh', Mail, true),
+    item('student-internships', 'internships', 'Thực tập của tôi', 'Thông tin đợt thực tập và giảng viên hướng dẫn.', 'Việt Anh', BookOpen, true),
   ],
   COMPANY: [
     item('company-jobs', 'jobs', 'Tin tuyển dụng', 'Quản lý nội dung và quy trình gửi duyệt tin.', 'Khôi', BriefcaseBusiness),
