@@ -6,10 +6,14 @@
 Stitch được cung cấp tại E:/Project01/stitch_custom_interface_design_builder.
 Đã tạo nhánh feature/fe-vietanh-student từ origin/main.
 
-Chưa triển khai UI: yêu cầu thiết kế trên Google Stitch trước khi code.
-Brief bên dưới đã được nhập và bấm Generate designs trên Google Stitch nhưng trang
-chuyển sang https://stitch.withgoogle.com/?pli=1 và chỉ hiện màn hình trống.
-Chưa xác nhận tạo project hoặc có ảnh thiết kế mới. Không coi brief là bản thiết kế đã duyệt.
+Đã xác nhận Google Stitch tạo xong sáu màn S05–S10 và xuất ảnh/HTML.
+Project: https://stitch.withgoogle.com/projects/14789408940184842057
+Ảnh tham chiếu được lưu tại student-designs/. Frontend đã được triển khai sau khi đọc thiết kế.
+Ảnh frontend-mobile.png và frontend-desktop.png là bản chạy thực tế, không phải ảnh prototype.
+
+Stitch tự thêm một số nội dung ngoài brief: chat HR, Calendar, báo cáo tuần, giới hạn
+5 CV, điểm ATS và số liệu hiệu quả minh họa. Các chi tiết này không được triển khai
+khi backend không cung cấp API hoặc dữ liệu tương ứng.
 
 ## Đánh giá mẫu hiện có
 

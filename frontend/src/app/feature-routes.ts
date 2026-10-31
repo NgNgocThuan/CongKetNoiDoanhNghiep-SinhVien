@@ -10,7 +10,14 @@ import { studentInternshipRoutes } from '@/features/student-internships/routes'
 
 // Add each feature's relative routes under its backend role.
 export const featureRoutes: Record<Role, RouteObject[]> = {
-  STUDENT: [...studentJobRoutes, ...studentProfileRoutes, ...studentCVRoutes, ...studentApplicationRoutes, ...studentInvitationRoutes, ...studentInternshipRoutes],
+  STUDENT: [
+    ...studentJobRoutes,
+    ...studentProfileRoutes,
+    ...studentCVRoutes,
+    ...studentApplicationRoutes,
+    ...studentInvitationRoutes,
+    ...studentInternshipRoutes,
+  ],
   COMPANY: [],
   ADMIN: [...catalogRoutes],
 }
