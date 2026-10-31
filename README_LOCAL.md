@@ -5,8 +5,8 @@
 - Frontend: http://127.0.0.1:5173
 - Backend FastAPI: http://127.0.0.1:8000/docs
 - Health: http://127.0.0.1:8000/health
-- Nhánh local: integration/frontend-local. Không có upstream và chưa đẩy lên GitHub.
-- Thư mục: B:/project/student-connect/student-connect/tmp/frontend-local
+- Bản phát hành: `demo 31/10/2026` trên `main`.
+- Chạy từ thư mục repository bạn clone/cập nhật về máy, không cần vào worktree `tmp/frontend-local`.
 
 | Vai trò | Email demo | Mật khẩu |
 |---|---|---|
@@ -20,7 +20,7 @@ vào database demo.
 
 ## Khởi động lại / tắt
 
-Từ thư mục bản tích hợp:
+Từ thư mục gốc repository:
 
 ~~~powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
@@ -29,7 +29,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\stop-local.ps1
 
 Chạy lệnh tắt trước khi khởi động lại. Script không tự dừng ứng dụng khác đang chiếm cổng.
 Nếu chưa có thư viện frontend, chạy npm ci trong frontend trước.
-Python dùng thư viện đã có trên máy và .codex-deps của repository gốc.
+Python cần được cài dependencies trong backend/requirements.txt; môi trường local có thể
+dùng .venv đã kích hoạt. Script cũng hỗ trợ .codex-deps của repository gốc nếu đã có.
 
 Database, file upload, log và PID nằm trong tmp/local-runtime/ (được Git bỏ qua).
 Không xóa thư mục này nếu muốn giữ dữ liệu vừa thao tác.

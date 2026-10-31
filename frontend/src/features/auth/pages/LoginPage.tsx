@@ -368,9 +368,6 @@ export default function LoginPage() {
                   />
                   <span className="text-xs text-[#444653]">Duy trì đăng nhập trong 30 ngày</span>
                 </label>
-                <span className="text-[11px] text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full font-medium border border-teal-100">
-                  Bảo mật SSL 256-bit
-                </span>
               </div>
 
               {/* NÚT CHÍNH ĐĂNG NHẬP (FULL-PILL #00288E) */}

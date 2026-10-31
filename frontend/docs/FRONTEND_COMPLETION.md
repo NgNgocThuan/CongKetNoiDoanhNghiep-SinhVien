@@ -1,7 +1,7 @@
 # Hoàn thiện frontend trên nhánh tích hợp local
 
 Ngày cập nhật: 31/10/2026. Nhánh: integration/frontend-local.
-Không đẩy lên GitHub hoặc gộp main trong đợt thay đổi này.
+Bản tích hợp được chuẩn bị đưa lên main với commit `demo 31/10/2026` theo yêu cầu người dùng.
 
 ## Thay giao diện sinh viên bằng nhánh Việt Anh
 

@@ -4,6 +4,25 @@
 - Frontend: React + TypeScript + Vite. Xem [hướng dẫn frontend](frontend/README.md).
 - Database: MariaDB, kết nối qua PyMySQL. Docker Compose hiện dùng MariaDB 10.11.
 
+## Chạy bản demo 31/10/2026 trên máy
+
+Từ thư mục gốc repository sau khi cập nhật `main`:
+
+```powershell
+cd frontend
+npm ci
+cd ../backend
+python -m pip install -r requirements.txt
+cd ..
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
+```
+
+Mở http://127.0.0.1:5173. Các tài khoản demo và cách tắt/khởi động lại ở
+[README_LOCAL.md](README_LOCAL.md). Script dùng SQLite riêng trong `tmp/local-runtime`,
+không thay đổi database MariaDB hoặc `.env` cá nhân; SMTP/AI thật được tắt trong bản demo.
+Để chạy bằng MariaDB và cấu hình SMTP/AI của bạn, dùng quy trình backend bên dưới và
+`npm run dev` trong frontend thay cho script demo.
+
 ## Cấu trúc
 
 ```text
