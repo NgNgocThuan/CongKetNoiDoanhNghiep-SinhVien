@@ -16,7 +16,7 @@ describe('notification-navigation smart routing', () => {
 
   it('routes JOB notifications with ref_id correctly', () => {
     expect(getNotificationTargetUrl({ ref_type: 'JOB_APPROVED', ref_id: 42 }, 'STUDENT')).toBe('/student/jobs/42')
-    expect(getNotificationTargetUrl({ ref_type: 'JOB_REJECTED', ref_id: 42 }, 'COMPANY')).toBe('/company/jobs/42')
+    expect(getNotificationTargetUrl({ ref_type: 'JOB_REJECTED', ref_id: 42 }, 'COMPANY')).toBe('/company/jobs/42/stats')
     expect(getNotificationTargetUrl({ ref_type: 'JOB_PENDING_APPROVAL', ref_id: 42 }, 'ADMIN')).toBe('/admin/jobs')
   })
 

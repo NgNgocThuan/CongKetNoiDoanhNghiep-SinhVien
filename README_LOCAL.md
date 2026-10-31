@@ -60,19 +60,24 @@ Nhánh Khôi hiện chủ yếu là giao diện mẫu:
 Không chạy các dữ liệu mẫu này như kết quả backend. Mã gốc của Khôi được giữ trong
 features/company-* để tiếp tục hoàn thiện theo thiết kế.
 
-Bản local bổ sung features/company-live làm adapter kiểm thử API:
-- Hồ sơ: đọc/lưu các trường backend cho phép.
-- Tin: đọc danh sách, tạo nháp tối thiểu, gửi duyệt, đóng tin.
-- Ứng viên: bắt buộc chọn tin, đọc đơn, tải CV snapshot và chuyển trạng thái theo backend.
-- Lời mời đã gửi: đọc danh sách thật; gửi lời mời từ trang matching.
+Bản local hiện đã bổ sung:
+- Nhà trường: tài khoản/tạo admin/khóa/mở khóa; duyệt doanh nghiệp và tin;
+  báo cáo vi phạm, nhật ký email, dashboard và xuất Excel/PDF.
+- Sinh viên: tìm/lọc tin, hồ sơ công ty, lưu việc, hồ sơ chính thức chỉ đọc,
+  thông tin tự khai, kỹ năng/kinh nghiệm/dự án/chứng chỉ; CV online và xem trước;
+  ứng tuyển, lịch sử/rút đơn, lời mời, đợt thực tập và giảng viên.
+- Doanh nghiệp: đầy đủ form hồ sơ, giấy tờ, tạo/sửa/gửi duyệt/đóng tin, thống kê;
+  bảng/Kanban có tải thêm từng cột, chi tiết và lịch sử đơn, chuyển trạng thái
+  có xác nhận, tải snapshot CV, danh sách lời mời.
 
-Đây chưa phải bản hoàn thiện Kanban, chỉnh sửa tin, upload giấy tờ hoặc đánh giá thực tập
-theo thiết kế Khôi. Chọn tin trong màn kiểm tra đơn hiện lấy 20 tin đầu tiên.
-Các API dữ liệu thật đều đi qua HTTP/auth chung; không hiển thị thống kê tự tạo.
+Theo yêu cầu mới: chỉ tạo CV ONLINE từ dữ liệu trường và thông tin bổ sung.
+Không có nút tải tệp CV lên; không dùng CV UPLOADED cũ trong danh sách ứng tuyển.
+CV online tải dữ liệu JSON theo API, chưa xuất PDF. Không xóa dữ liệu CV cũ.
 
-Chưa có frontend sinh viên đầy đủ của Việt Anh trong các nhánh hiện có:
-hồ sơ/CV/đơn ứng tuyển đầy đủ vẫn là placeholder. Trang matching đã có dialog chọn CV,
-nộp đơn và lưu việc độc lập. Dashboard phân tích Admin cũng chưa được triển khai UI đầy đủ.
+Giới hạn: giấy tờ chưa có endpoint tải an toàn; doanh nghiệp chưa có API danh sách
+kết quả thực tập. Form đánh giá dùng /company/evaluations/:resultId qua link nhà
+trường cung cấp. Chưa có tài khoản giảng viên riêng hoặc bảng điểm sinh viên.
+Xem frontend/docs/FRONTEND_COMPLETION.md để biết danh sách API và cách kiểm tra.
 
 ## Backend và dịch vụ ngoài
 
@@ -85,20 +90,11 @@ Không thay đổi database hoặc .env của bản dự án cũ. SMTP_HOST, AI_
 Matching vẫn chạy theo kỹ năng khai báo và công thức backend; không phải lượt kiểm tra
 trích xuất AI thật. Gửi mail/AI thật và MariaDB cần được cấu hình, kiểm tra riêng.
 
-## Đã kiểm tra
+## Kiểm tra
 
-- Build thành công; lint không lỗi; 59 unit test đạt.
-- 25 kiểm tra trình duyệt cho khung chung, matching và nhà trường đạt.
-- Smoke bằng Chrome KHÔNG mock API, với backend đang chạy trên cổng 8000:
-  - Đăng nhập ba vai trò.
-  - Sinh viên đọc matching, lưu việc, chọn CV và nộp đơn.
-  - Doanh nghiệp lưu hồ sơ rồi tải lại xác nhận.
-  - Tạo tin nháp qua API.
-  - Đọc đơn vừa nộp và chuyển sang SCREENING.
-  - Gợi ý ứng viên theo tin, gửi lời mời; xem danh sách lời mời thật.
-  - Sinh viên nhận thông báo từ backend.
-  - Admin đọc danh sách sinh viên, khoa và đợt thực tập.
-  - Không có lỗi JavaScript pageerror trong smoke.
-- Database xác nhận có 1 đơn SCREENING, 1 lời mời, 3 thông báo sau smoke.
-  Tin nháp tạo khi thử được giữ để bạn kiểm tra tiếp.
-- Báo cáo/ảnh smoke nằm trong tmp/local-runtime/.
+Trong frontend, chạy npm run lint, npm run build, npm test, npm run test:e2e.
+Kiểm tra API thật: khởi động start-local.ps1 rồi chạy npm run test:live trong frontend.
+Script live dùng Chrome và tạo dữ liệu thử trên database demo local, không mock API.
+Đã thử duyệt doanh nghiệp/tin, khóa–mở tài khoản, tạo CV online, ứng tuyển,
+chuyển trạng thái/tải snapshot/Kanban, báo cáo vi phạm, xuất PDF và ba layout mobile.
+Ảnh kiểm tra ở tmp/local-runtime/completion/.

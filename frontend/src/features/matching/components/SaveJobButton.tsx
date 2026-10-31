@@ -13,6 +13,7 @@ export function SaveJobButton({ jobId }: { jobId: number }) {
     onSuccess: () => {
       client.setQueryData<number[]>(matchingKeys.saved, previous => saved ? previous?.filter(id => id !== jobId) ?? [] : [...new Set([...(previous ?? []), jobId])])
       void client.invalidateQueries({ queryKey: ['saved-jobs'] })
+      void client.invalidateQueries({ queryKey: ['student-jobs', true] })
     },
   })
   return <div className="match-save"><Button variant="secondary" size="sm" pending={query.isPending || mutation.isPending} disabled={query.isError} aria-label={saved ? 'Bỏ lưu việc làm' : 'Lưu việc làm'} aria-pressed={saved} onClick={() => mutation.mutate()}><Bookmark size={17} fill={saved ? 'currentColor' : 'none'} /><span>{saved ? 'Đã lưu' : 'Lưu tin'}</span></Button>

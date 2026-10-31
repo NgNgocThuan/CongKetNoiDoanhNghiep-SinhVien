@@ -1,5 +1,10 @@
 ﻿# Phân công frontend — Student Connect (5 thành viên)
 
+> Cập nhật ngày 31/10/2026: tạm bỏ tải tệp CV của sinh viên lên hệ thống.
+> Chỉ tạo CV ONLINE từ dữ liệu nhà trường (chỉ đọc), cho bổ sung thông tin tự khai.
+> Các phần upload PDF/DOCX trong phân công gốc dưới đây được tạm hoãn.
+> Bản tích hợp local đã bổ sung các trang còn thiếu; xem FRONTEND_COMPLETION.md.
+
 ## 1. Mục tiêu và phạm vi
 
 Làm frontend cho backend đã tích hợp trên main, mốc kiểm tra 80fd94b. Có ba vai trò:

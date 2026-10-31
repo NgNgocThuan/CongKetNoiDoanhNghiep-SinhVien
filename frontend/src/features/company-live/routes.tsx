@@ -1,10 +1,22 @@
 import { lazy } from 'react'
 import type { RouteObject } from 'react-router-dom'
-const Profile = lazy(() => import('./Pages').then(module => ({ default: module.CompanyProfilePage })))
-const Jobs = lazy(() => import('./Pages').then(module => ({ default: module.CompanyJobsPage })))
-const Applications = lazy(() => import('./Pages').then(module => ({ default: module.CompanyApplicationsPage })))
-const Invitations = lazy(() => import('./Pages').then(module => ({ default: module.CompanyInvitationsPage })))
+const Profile = lazy(() => import('./Profile'))
+const Jobs = lazy(() => import('./Jobs'))
+const Applications = lazy(() => import('./Applications'))
+const Invitations = lazy(() => import('./Invitations'))
+const JobStats = lazy(() =>
+  import('./Jobs').then((module) => ({ default: module.JobStatsPage })),
+)
+const Evaluation = lazy(() =>
+  import('./Applications').then((module) => ({
+    default: module.EvaluationPage,
+  })),
+)
 export const companyLiveRoutes: RouteObject[] = [
-  { path: 'profile', element: <Profile /> }, { path: 'jobs', element: <Jobs /> },
-  { path: 'applications', element: <Applications /> }, { path: 'invitations', element: <Invitations /> },
+  { path: 'profile', element: <Profile /> },
+  { path: 'jobs', element: <Jobs /> },
+  { path: 'applications', element: <Applications /> },
+  { path: 'invitations', element: <Invitations /> },
+  { path: 'jobs/:jobId/stats', element: <JobStats /> },
+  { path: 'evaluations/:resultId', element: <Evaluation /> },
 ]

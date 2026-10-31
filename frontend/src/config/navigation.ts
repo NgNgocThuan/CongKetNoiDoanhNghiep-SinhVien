@@ -6,14 +6,14 @@ export interface FeatureItem { id: string; path: string; title: string; descript
 const item = (id: string, path: string, title: string, description: string, owner: string, icon: LucideIcon, ready = false): FeatureItem => ({ id, path, title, description, owner, icon, ready })
 export const features: Record<Role, FeatureItem[]> = {
   STUDENT: [
-    item('student-jobs', 'jobs', 'Tìm việc', 'Khám phá cơ hội phù hợp với mục tiêu nghề nghiệp.', 'Việt Anh', BriefcaseBusiness),
+    item('student-jobs', 'jobs', 'Tìm việc', 'Khám phá cơ hội phù hợp với mục tiêu nghề nghiệp.', 'Việt Anh', BriefcaseBusiness, true),
     item('matching-jobs', 'recommended', 'Gợi ý phù hợp', 'Tìm hướng đi từ kỹ năng và kinh nghiệm của bạn.', 'Thuận', Sparkles, true),
-    item('saved-jobs', 'saved-jobs', 'Việc đã lưu', 'Giữ lại những cơ hội bạn quan tâm.', 'Việt Anh', Heart),
-    item('student-profile', 'profile', 'Hồ sơ của tôi', 'Kể câu chuyện học tập và năng lực của bạn.', 'Việt Anh', GraduationCap),
-    item('student-cvs', 'cvs', 'CV của tôi', 'Chuẩn bị hồ sơ cho cơ hội tiếp theo.', 'Việt Anh', FileText),
-    item('student-applications', 'applications', 'Đơn ứng tuyển', 'Theo dõi từng bước trong hành trình ứng tuyển.', 'Việt Anh', ClipboardList),
-    item('student-invitations', 'invitations', 'Lời mời', 'Những kết nối mới từ doanh nghiệp.', 'Việt Anh', Mail),
-    item('student-internships', 'internships', 'Thực tập của tôi', 'Thông tin đợt thực tập và giảng viên hướng dẫn.', 'Việt Anh', BookOpen),
+    item('saved-jobs', 'saved-jobs', 'Việc đã lưu', 'Giữ lại những cơ hội bạn quan tâm.', 'Việt Anh', Heart, true),
+    item('student-profile', 'profile', 'Hồ sơ của tôi', 'Kể câu chuyện học tập và năng lực của bạn.', 'Việt Anh', GraduationCap, true),
+    item('student-cvs', 'cvs', 'CV của tôi', 'Chuẩn bị hồ sơ cho cơ hội tiếp theo.', 'Việt Anh', FileText, true),
+    item('student-applications', 'applications', 'Đơn ứng tuyển', 'Theo dõi từng bước trong hành trình ứng tuyển.', 'Việt Anh', ClipboardList, true),
+    item('student-invitations', 'invitations', 'Lời mời', 'Những kết nối mới từ doanh nghiệp.', 'Việt Anh', Mail, true),
+    item('student-internships', 'internships', 'Thực tập của tôi', 'Thông tin đợt thực tập và giảng viên hướng dẫn.', 'Việt Anh', BookOpen, true),
   ],
   COMPANY: [
     item('company-jobs', 'jobs', 'Tin tuyển dụng', 'Quản lý nội dung và quy trình gửi duyệt tin.', 'Khôi', BriefcaseBusiness, true),
@@ -23,16 +23,16 @@ export const features: Record<Role, FeatureItem[]> = {
     item('company-profile', 'profile', 'Hồ sơ doanh nghiệp', 'Giới thiệu môi trường và giá trị của công ty.', 'Khôi', Building2, true),
   ],
   ADMIN: [
-    item('analytics', 'analytics', 'Phân tích & báo cáo', 'Góc nhìn tổng quan về cơ hội và nguồn nhân lực.', 'Thuận', BarChart3),
+    item('analytics', 'analytics', 'Phân tích & báo cáo', 'Góc nhìn tổng quan về cơ hội và nguồn nhân lực.', 'Thuận', BarChart3, true),
     item('school-students', 'students', 'Sinh viên', 'Quản lý hồ sơ học thuật và dữ liệu sinh viên.', 'Phong', GraduationCap, true),
     item('lecturers', 'lecturers', 'Giảng viên', 'Quản lý thông tin giảng viên hướng dẫn.', 'Phong', Users, true),
-    item('moderation-companies', 'companies', 'Doanh nghiệp', 'Xem xét và phê duyệt hồ sơ đối tác.', 'Quang', Building2),
-    item('moderation-jobs', 'jobs', 'Kiểm duyệt tin', 'Giữ chất lượng các cơ hội tuyển dụng.', 'Quang', FileCheck2),
+    item('moderation-companies', 'companies', 'Doanh nghiệp', 'Xem xét và phê duyệt hồ sơ đối tác.', 'Quang', Building2, true),
+    item('moderation-jobs', 'jobs', 'Kiểm duyệt tin', 'Giữ chất lượng các cơ hội tuyển dụng.', 'Quang', FileCheck2, true),
     item('internship-admin', 'internships', 'Đợt thực tập', 'Tổ chức đợt, phân công và xác nhận kết quả.', 'Phong', ClipboardList, true),
     item('catalog', 'catalog', 'Danh mục', 'Khoa, ngành và các danh mục dùng chung.', 'Phong', Layers3, true),
-    item('account-admin', 'users', 'Tài khoản', 'Quản lý quyền truy cập và trạng thái tài khoản.', 'Quang', ShieldCheck),
-    item('reports', 'reports', 'Báo cáo vi phạm', 'Xem xét phản ánh và xử lý theo quy định.', 'Quang', FileText),
-    item('email-logs', 'email-logs', 'Nhật ký email', 'Theo dõi quá trình gửi thông báo hệ thống.', 'Quang', Mail),
+    item('account-admin', 'users', 'Tài khoản', 'Quản lý quyền truy cập và trạng thái tài khoản.', 'Quang', ShieldCheck, true),
+    item('reports', 'reports', 'Báo cáo vi phạm', 'Xem xét phản ánh và xử lý theo quy định.', 'Quang', FileText, true),
+    item('email-logs', 'email-logs', 'Nhật ký email', 'Theo dõi quá trình gửi thông báo hệ thống.', 'Quang', Mail, true),
   ],
 }
 export const shellCopy: Record<Role, { subtitle: string; heading: string; description: string }> = {

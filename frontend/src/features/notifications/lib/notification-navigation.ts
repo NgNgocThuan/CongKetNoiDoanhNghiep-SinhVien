@@ -14,7 +14,7 @@ export function getNotificationTargetUrl(
   // 1. Tin tuyển dụng (Job) - Kiểm tra trước để tránh nhầm JOB_APPROVED với APPLICATION
   if (refType.startsWith('JOB') || refType.includes('_JOB') || refType === 'JOB') {
     if (role === 'STUDENT') return refId ? `/student/jobs/${refId}` : '/student/jobs'
-    if (role === 'COMPANY') return refId ? `/company/jobs/${refId}` : '/company/jobs'
+    if (role === 'COMPANY') return refId ? `/company/jobs/${refId}/stats` : '/company/jobs'
     if (role === 'ADMIN') return '/admin/jobs'
   }
 

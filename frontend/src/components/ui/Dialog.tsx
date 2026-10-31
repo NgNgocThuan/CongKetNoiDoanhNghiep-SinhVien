@@ -3,14 +3,14 @@ import { X } from 'lucide-react'
 import { useId, useRef } from 'react'
 import type { ReactNode } from 'react'
 
-export function Dialog({ open, onOpenChange, title, description, children }: {
-  open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string; children: ReactNode
+export function Dialog({ open, onOpenChange, title, description, children, wide = false }: {
+  open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string; children: ReactNode; wide?: boolean
 }) {
   const descriptionId = useId()
   const returnFocus = useRef<HTMLElement | null>(null)
   return <Primitive.Root open={open} onOpenChange={onOpenChange}>
     <Primitive.Portal><Primitive.Overlay className="dialog-overlay" />
-      <Primitive.Content className="dialog" aria-describedby={description ? descriptionId : undefined}
+      <Primitive.Content className={wide ? 'dialog dialog--wide' : 'dialog'} aria-describedby={description ? descriptionId : undefined}
         onOpenAutoFocus={() => { returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }}
         onCloseAutoFocus={event => {
           event.preventDefault()

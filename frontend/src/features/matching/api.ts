@@ -20,6 +20,6 @@ export const matchingApi = {
   },
   save: async (jobId: number) => { await http.post('/saved-jobs/' + jobId) },
   unsave: async (jobId: number) => { await http.delete('/saved-jobs/' + jobId) },
-  apply: async (data: { job_id: number; cv_id: number; cover_letter?: string }) => (await http.post<{ id: number }>('/applications', data)).data,
+  apply: async (data: { job_id: number; cv_id: number; cover_letter?: string; invitation_id?: number }) => (await http.post<{ id: number }>('/applications', data)).data,
   invite: async (data: { job_id: number; student_id: number; message?: string }) => (await http.post<{ id: number }>('/invitations', data)).data,
 }

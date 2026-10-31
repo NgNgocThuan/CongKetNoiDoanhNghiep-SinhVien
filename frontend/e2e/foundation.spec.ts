@@ -13,6 +13,7 @@ async function mockApi(page: Page, role: Role) {
     const data = path.endsWith('/auth/login') || path.endsWith('/auth/refresh') ? { access_token: 'test-access', refresh_token: 'test-refresh', token_type: 'bearer' }
       : path.endsWith('/auth/me') ? user
       : path.endsWith('/notifications/unread-count') ? { unread_count: 0 }
+      : path.endsWith('/students/me') ? { official: { student_code: 'SV001', full_name: 'Nguyễn Minh Anh', faculty: { name: 'Công nghệ thông tin' }, major: { name: 'Kỹ thuật phần mềm' }, achievements: [] }, self_declared: { profile: {}, skills: [], experiences: [], projects: [], certificates: [] } }
       : path.endsWith('/catalog/faculties') ? { items: [{ id: 1, code: 'CNTT', name: 'Công nghệ thông tin', is_active: true }], total: 1, page: 1, size: 10, pages: 1 }
       : path.endsWith('/notifications') ? { items: [], total: 0, page: 1, size: 10, pages: 0 }
       : { message: 'Đã hoàn tất' }
@@ -59,7 +60,7 @@ test('mobile navigation opens, traps focus and closes with Escape', async ({ pag
   await expect(dialog).not.toBeVisible()
   await trigger.click()
   await dialog.getByRole('link', { name: 'Hồ sơ của tôi' }).click()
-  await expect(page.getByRole('heading', { name: 'Chúng tôi đang hoàn thiện tiện ích này' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Hồ sơ của tôi', exact: true })).toBeVisible()
   await expect(dialog).not.toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/student-mobile.png', fullPage: true })

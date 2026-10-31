@@ -14,7 +14,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:live": "node scripts/live-workspace-smoke.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "6.0.2",

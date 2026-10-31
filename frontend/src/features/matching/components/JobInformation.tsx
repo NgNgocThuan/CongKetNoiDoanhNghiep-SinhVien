@@ -5,6 +5,7 @@ import { useJob } from '../hooks'
 import { salaryLabel, workModes } from '../format'
 import type { Job } from '../types'
 import { SkillTags } from './MatchPanel'
+import '../matching.css'
 export function JobMetadata({ job }: { job: Job }) {
   return <div className="match-job-meta"><span><MapPin size={15} />{job.location || 'Chưa cung cấp địa điểm'}</span><span><BriefcaseBusiness size={15} />{job.job_type.name} · {workModes[job.work_mode]}</span><span><CalendarDays size={15} />Hạn nộp: {job.deadline.split('-').reverse().join('/')}</span><strong><Wallet size={15} />{salaryLabel(job)}</strong></div>
 }

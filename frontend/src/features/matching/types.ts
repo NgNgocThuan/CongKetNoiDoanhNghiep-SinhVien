@@ -25,6 +25,6 @@ export interface JobDetail extends Job {
   min_gpa: number | null; min_experience_months: number | null
   skills: { skill_id: number; is_required: boolean; skill: { id: number; name: string } }[]
 }
-export interface CVChoice { id: number; title: string; is_default: boolean }
+export interface CVChoice { id: number; title: string; is_default: boolean; type: 'ONLINE' | 'UPLOADED' }
 export interface SavedJob { job: Job; saved_at: string }
 export type { Page }

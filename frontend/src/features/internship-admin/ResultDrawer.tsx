@@ -67,6 +67,10 @@ function ResultDrawerContent({ result, onClose }: { result: InternshipResult; on
               <ResultBadge result={result.result} />
             </Descriptions.Item>
             <Descriptions.Item label="Giảng viên hướng dẫn">{result.lecturer_name ?? 'Chưa phân công'}</Descriptions.Item>
+            {result.company_id && !locked && <Descriptions.Item label="Link đánh giá cho doanh nghiệp">
+              <Typography.Text copyable>{`${window.location.origin}/company/evaluations/${result.id}`}</Typography.Text>
+              <Typography.Paragraph type="secondary">Gửi link này cho doanh nghiệp được gắn với kết quả. Doanh nghiệp cần đăng nhập đúng tài khoản để đánh giá.</Typography.Paragraph>
+            </Descriptions.Item>}
             {result.confirmed_at && (
               <Descriptions.Item label="Xác nhận lúc">{formatDateTime(result.confirmed_at)}</Descriptions.Item>
             )}
