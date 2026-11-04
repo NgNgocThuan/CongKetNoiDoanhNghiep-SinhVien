@@ -1,5 +1,7 @@
 # Phân công nhiệm vụ Backend: nhóm 5 người
 
+> Đây là phân công luồng tuyển dụng/thực tập cũ. Phần mở rộng Freelancer xem [TEAM_TASKS.md](freelancer/TEAM_TASKS.md), gồm bốn gói nghiệp vụ cân theo điểm và phần tài chính/payOS của chủ dự án.
+
 > Ưu tiên hiện tại: **hoàn thiện backend trước**, frontend làm sau. Swagger (`/docs`) là tài liệu API cho frontend nên endpoint nào xong phải có `summary` và `response_model` rõ ràng.
 >
 > Điền tên thật vào cột "Thành viên" rồi mới bắt đầu. Các mã TV1–TV5 đã được ghi sẵn trong docstring của từng file stub (`routers/`, `services/`, `schemas/`).

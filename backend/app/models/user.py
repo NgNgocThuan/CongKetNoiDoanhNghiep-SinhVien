@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import UserRole, UserStatus
 from app.models.base import Base, CreatedAtMixin, TimestampMixin, db_enum, fk, pk
+from app.models.freelancer_base import UTCDateTime
 
 if TYPE_CHECKING:
     from app.models.company import Company
@@ -29,6 +30,9 @@ class User(TimestampMixin, Base):
     )
     locked_reason: Mapped[Optional[str]] = mapped_column(String(500))
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    phone: Mapped[Optional[str]] = mapped_column(String(20))
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    phone_verified_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
 
     # Mỗi user thuộc đúng một loại hồ sơ, tùy role
     student: Mapped[Optional["Student"]] = relationship(back_populates="user", uselist=False)

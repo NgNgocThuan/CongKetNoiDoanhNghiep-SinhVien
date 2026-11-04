@@ -1,0 +1,395 @@
+"""Shared Freelancer state values. New DB states use VARCHAR + CHECK."""
+from app.core.enums import StrEnum
+
+
+class FileScanStatus(StrEnum):
+    PENDING = "PENDING"
+    CLEAN = "CLEAN"
+    REJECTED = "REJECTED"
+
+
+class FileAvailability(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    QUARANTINED = "QUARANTINED"
+    REMOVED = "REMOVED"
+
+
+class VerificationChannel(StrEnum):
+    EMAIL = "EMAIL"
+    PHONE = "PHONE"
+
+
+class VerificationPurpose(StrEnum):
+    VERIFY_CONTACT = "VERIFY_CONTACT"
+    CHANGE_CONTACT = "CHANGE_CONTACT"
+
+
+class OtpStatus(StrEnum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    EXPIRED = "EXPIRED"
+    LOCKED = "LOCKED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class BusinessSubmissionStatus(StrEnum):
+    PENDING = "PENDING"
+    NEEDS_REVISION = "NEEDS_REVISION"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class BusinessDocumentType(StrEnum):
+    BUSINESS_LICENSE = "BUSINESS_LICENSE"
+    TAX_CERTIFICATE = "TAX_CERTIFICATE"
+    AUTHORIZATION = "AUTHORIZATION"
+    OTHER = "OTHER"
+
+
+class CompanyLimitSource(StrEnum):
+    VERIFIED = "VERIFIED"
+    PARTNER = "PARTNER"
+    OVERRIDE = "OVERRIDE"
+
+
+class MouSignatureMethod(StrEnum):
+    SCANNED_SIGNED_DOCUMENT = "SCANNED_SIGNED_DOCUMENT"
+    EXTERNALLY_DIGITALLY_SIGNED = "EXTERNALLY_DIGITALLY_SIGNED"
+
+
+class SignatureVerificationStatus(StrEnum):
+    NOT_CHECKED = "NOT_CHECKED"
+    MANUALLY_REVIEWED = "MANUALLY_REVIEWED"
+    CRYPTOGRAPHICALLY_VERIFIED = "CRYPTOGRAPHICALLY_VERIFIED"
+    FAILED = "FAILED"
+
+
+class MouStatus(StrEnum):
+    PENDING_REVIEW = "PENDING_REVIEW"
+    ACTIVE = "ACTIVE"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class RecruitmentStatus(StrEnum):
+    NOT_OPEN = "NOT_OPEN"
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+
+
+class FundingPolicy(StrEnum):
+    FULL = "FULL"
+    PER_MILESTONE = "PER_MILESTONE"
+
+
+class ProjectStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED = "APPROVED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    NEEDS_REVISION = "NEEDS_REVISION"
+    REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
+    CLOSED = "CLOSED"
+
+
+class ProjectReviewDecision(StrEnum):
+    APPROVED = "APPROVED"
+    NEEDS_REVISION = "NEEDS_REVISION"
+    REJECTED = "REJECTED"
+
+
+class FreelanceApplicationStatus(StrEnum):
+    SUBMITTED = "SUBMITTED"
+    SHORTLISTED = "SHORTLISTED"
+    SELECTED = "SELECTED"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class ContractStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PENDING_ACCEPTANCE = "PENDING_ACCEPTANCE"
+    ACTIVE = "ACTIVE"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    TERMINATED = "TERMINATED"
+
+
+class ContractBudgetStatus(StrEnum):
+    RESERVED = "RESERVED"
+    COMMITTED = "COMMITTED"
+    RELEASED = "RELEASED"
+
+
+class ContractVersionStatus(StrEnum):
+    DRAFT = "DRAFT"
+    OFFERED = "OFFERED"
+    EFFECTIVE = "EFFECTIVE"
+    DECLINED = "DECLINED"
+    WITHDRAWN = "WITHDRAWN"
+    SUPERSEDED = "SUPERSEDED"
+    EXPIRED = "EXPIRED"
+
+
+class MilestoneStatus(StrEnum):
+    NOT_FUNDED = "NOT_FUNDED"
+    FUNDING_PENDING = "FUNDING_PENDING"
+    FUNDED = "FUNDED"
+    IN_PROGRESS = "IN_PROGRESS"
+    SUBMITTED = "SUBMITTED"
+    REVISION_REQUESTED = "REVISION_REQUESTED"
+    ACCEPTED = "ACCEPTED"
+    SETTLEMENT_PENDING = "SETTLEMENT_PENDING"
+    PAID_OUT = "PAID_OUT"
+    DISPUTED = "DISPUTED"
+    REFUNDED = "REFUNDED"
+    PARTIALLY_RELEASED = "PARTIALLY_RELEASED"
+    CANCELLED = "CANCELLED"
+
+
+class AcceptanceSource(StrEnum):
+    MANUAL = "MANUAL"
+    AUTO = "AUTO"
+    DISPUTE = "DISPUTE"
+
+
+class MilestoneReviewAction(StrEnum):
+    ACCEPT = "ACCEPT"
+    REQUEST_REVISION = "REQUEST_REVISION"
+    AUTO_ACCEPT = "AUTO_ACCEPT"
+
+
+class ReviewVisibility(StrEnum):
+    VISIBLE = "VISIBLE"
+    HIDDEN = "HIDDEN"
+
+
+class LedgerAccountKind(StrEnum):
+    PLATFORM_BANK = "PLATFORM_BANK"
+    PAYOUT_ACCOUNT = "PAYOUT_ACCOUNT"
+    UNALLOCATED_RECEIPTS = "UNALLOCATED_RECEIPTS"
+    ESCROW_HELD = "ESCROW_HELD"
+    FREELANCER_PAYABLE = "FREELANCER_PAYABLE"
+    CLIENT_REFUND_PAYABLE = "CLIENT_REFUND_PAYABLE"
+    PLATFORM_FEE_REVENUE = "PLATFORM_FEE_REVENUE"
+    PROVIDER_FEE_EXPENSE = "PROVIDER_FEE_EXPENSE"
+    PLATFORM_EQUITY = "PLATFORM_EQUITY"
+
+
+class PostingSide(StrEnum):
+    D = "D"
+    C = "C"
+
+
+class PaymentOrderStatus(StrEnum):
+    CREATING = "CREATING"
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    PAID = "PAID"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    UNKNOWN = "UNKNOWN"
+
+
+class ProviderEventType(StrEnum):
+    PAYMENT = "PAYMENT"
+    PAYOUT = "PAYOUT"
+
+
+class ProviderEventStatus(StrEnum):
+    RECEIVED = "RECEIVED"
+    PROCESSING = "PROCESSING"
+    PROCESSED = "PROCESSED"
+    UNMATCHED = "UNMATCHED"
+    RETRY = "RETRY"
+    DEAD = "DEAD"
+    PROBE = "PROBE"
+
+
+class PaymentAllocationStatus(StrEnum):
+    UNALLOCATED = "UNALLOCATED"
+    ALLOCATED = "ALLOCATED"
+    PARTIALLY_RETURNED = "PARTIALLY_RETURNED"
+    RETURNED = "RETURNED"
+
+
+class PaymentReviewReason(StrEnum):
+    UNMATCHED = "UNMATCHED"
+    UNDERPAID = "UNDERPAID"
+    OVERPAID = "OVERPAID"
+    LATE = "LATE"
+    WRONG_ACCOUNT = "WRONG_ACCOUNT"
+    DUPLICATE_PAYMENT = "DUPLICATE_PAYMENT"
+
+
+class PaymentReviewStatus(StrEnum):
+    OPEN = "OPEN"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    RESOLVED = "RESOLVED"
+
+
+class PaymentReviewResolution(StrEnum):
+    ALLOCATE = "ALLOCATE"
+    RETURN = "RETURN"
+    PARTIAL_RETURN = "PARTIAL_RETURN"
+
+
+class CancellationBasis(StrEnum):
+    MUTUAL = "MUTUAL"
+    BEFORE_START = "BEFORE_START"
+    OVERDUE = "OVERDUE"
+
+
+class CancellationStatus(StrEnum):
+    PROPOSED = "PROPOSED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+    EXECUTED = "EXECUTED"
+
+
+class DisputeStatus(StrEnum):
+    OPEN = "OPEN"
+    EVIDENCE_COLLECTION = "EVIDENCE_COLLECTION"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    ESCALATED = "ESCALATED"
+    RESOLVED = "RESOLVED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class HoldReason(StrEnum):
+    DISPUTE = "DISPUTE"
+    COMPANY_SUSPENSION = "COMPANY_SUSPENSION"
+    ADMIN_REVIEW = "ADMIN_REVIEW"
+
+
+class DisputeOutcome(StrEnum):
+    PAYOUT = "PAYOUT"
+    REFUND = "REFUND"
+    SPLIT = "SPLIT"
+
+
+class DisputeDecisionStatus(StrEnum):
+    PROPOSED = "PROPOSED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXECUTING = "EXECUTING"
+    EXECUTED = "EXECUTED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class BankDestinationStatus(StrEnum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    DISABLED = "DISABLED"
+
+
+class SettlementKind(StrEnum):
+    RELEASE = "RELEASE"
+    REFUND = "REFUND"
+    SPLIT = "SPLIT"
+
+
+class SettlementSource(StrEnum):
+    ACCEPTANCE = "ACCEPTANCE"
+    AUTO_ACCEPT = "AUTO_ACCEPT"
+    CANCELLATION = "CANCELLATION"
+    DISPUTE = "DISPUTE"
+
+
+class SettlementStatus(StrEnum):
+    PREPARED = "PREPARED"
+    PROCESSING = "PROCESSING"
+    PARTIALLY_SUCCEEDED = "PARTIALLY_SUCCEEDED"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class TransferPurpose(StrEnum):
+    RELEASE = "RELEASE"
+    REFUND = "REFUND"
+    UNALLOCATED_REFUND = "UNALLOCATED_REFUND"
+
+
+class TransferStatus(StrEnum):
+    READY = "READY"
+    PROCESSING = "PROCESSING"
+    UNKNOWN = "UNKNOWN"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class TransferOperation(StrEnum):
+    CREATE = "CREATE"
+    QUERY = "QUERY"
+
+
+class TransferAttemptStatus(StrEnum):
+    STARTED = "STARTED"
+    CONFIRMED_SUCCESS = "CONFIRMED_SUCCESS"
+    CONFIRMED_FAILURE = "CONFIRMED_FAILURE"
+    UNKNOWN = "UNKNOWN"
+
+
+class LimitReservationStatus(StrEnum):
+    RESERVED = "RESERVED"
+    CONSUMED = "CONSUMED"
+    RELEASED = "RELEASED"
+
+
+class ActorType(StrEnum):
+    USER = "USER"
+    SYSTEM = "SYSTEM"
+    PROVIDER = "PROVIDER"
+
+
+class OutboxStatus(StrEnum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    SUCCEEDED = "SUCCEEDED"
+    RETRY = "RETRY"
+    DEAD = "DEAD"
+
+
+class ScheduledJobStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    RETRY = "RETRY"
+    CANCELLED = "CANCELLED"
+    DEAD = "DEAD"
+
+
+class ReconciliationRunStatus(StrEnum):
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ReconciliationItemStatus(StrEnum):
+    OPEN = "OPEN"
+    RESOLVED = "RESOLVED"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+
+
+class BusinessStatus(StrEnum):
+    UNVERIFIED = "UNVERIFIED"
+    PENDING_VERIFICATION = "PENDING_VERIFICATION"
+    NEEDS_REVISION = "NEEDS_REVISION"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    REVOKED = "REVOKED"
+
+
+class CompanyOperationStatus(StrEnum):
+    ENABLED = "ENABLED"
+    SUSPENDED = "SUSPENDED"

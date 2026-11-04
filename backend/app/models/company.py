@@ -6,8 +6,10 @@ from sqlalchemy import DateTime, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import CompanyDocType, CompanySize, VerificationStatus
+from app.core.freelancer_enums import BusinessStatus, CompanyOperationStatus
 from app.models.base import Base, TimestampMixin, db_enum, fk, pk
 from app.models.catalog import Industry
+from app.models.freelancer_base import UTCDateTime, state_type
 
 if TYPE_CHECKING:
     from app.models.job import Job
@@ -41,6 +43,28 @@ class Company(TimestampMixin, Base):
     verified_by: Mapped[Optional[int]] = fk("users.id", ondelete="SET NULL", nullable=True)
     verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     reject_reason: Mapped[Optional[str]] = mapped_column(String(500))
+    legal_name: Mapped[Optional[str]] = mapped_column(String(255))
+    representative_name: Mapped[Optional[str]] = mapped_column(String(255))
+    representative_position: Mapped[Optional[str]] = mapped_column(String(100))
+    is_legal_representative: Mapped[Optional[bool]]
+    authorization_file_id: Mapped[Optional[int]] = fk(
+        "stored_files.id", ondelete="RESTRICT", nullable=True
+    )
+    business_status: Mapped[BusinessStatus] = mapped_column(
+        state_type(BusinessStatus, "companies_business_status"),
+        default=BusinessStatus.UNVERIFIED, server_default="UNVERIFIED", nullable=False,
+    )
+    business_verified_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    business_verified_by: Mapped[Optional[int]] = fk(
+        "users.id", ondelete="RESTRICT", nullable=True
+    )
+    operation_status: Mapped[CompanyOperationStatus] = mapped_column(
+        state_type(CompanyOperationStatus, "companies_operation_status"),
+        default=CompanyOperationStatus.ENABLED, server_default="ENABLED", nullable=False,
+    )
+    suspension_reason: Mapped[Optional[str]] = mapped_column(Text)
+    suspended_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    suspended_by: Mapped[Optional[int]] = fk("users.id", ondelete="RESTRICT", nullable=True)
 
     # Có hai FK tới users (user_id, verified_by) nên phải chỉ rõ foreign_keys
     user: Mapped["User"] = relationship(back_populates="company", foreign_keys=[user_id])
@@ -53,6 +77,7 @@ class Company(TimestampMixin, Base):
     __table_args__ = (
         Index("idx_companies_status", "verification_status"),
         Index("idx_companies_industry", "industry_id"),
+        Index("ix_companies_business_status_created_at", "business_status", "created_at"),
     )
 
 
@@ -64,6 +89,10 @@ class CompanyDocument(Base):
     doc_type: Mapped[CompanyDocType] = mapped_column(db_enum(CompanyDocType), nullable=False)
     file_url: Mapped[str] = mapped_column(String(500), nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    stored_file_id: Mapped[Optional[int]] = fk(
+        "stored_files.id", ondelete="RESTRICT", nullable=True
+    )
+    uploaded_by: Mapped[Optional[int]] = fk("users.id", ondelete="RESTRICT", nullable=True)
 
     company: Mapped["Company"] = relationship(back_populates="documents")
 

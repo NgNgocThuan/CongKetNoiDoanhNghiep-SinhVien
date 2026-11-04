@@ -1,0 +1,17 @@
+# Disposable test service, independent of docker-compose.yml and the team's DB.
+services:
+  freelancer-test-db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: freelancer-test-only
+      MARIADB_DATABASE: student_connect_test_admin
+    ports:
+      - "127.0.0.1:3308:3306"
+    tmpfs:
+      - /var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30

@@ -1,5 +1,7 @@
 # Quy ước dự án (Backend)
 
+> Phần mở rộng Freelancer dùng [bộ quy ước riêng](freelancer/README.md). Service ngoài cùng sở hữu transaction, hàm `*_in_tx` không commit; test khóa/tiền/migration phải kiểm chứng thêm trên MariaDB. Các quy tắc commit từng service và chỉ dùng SQLite bên dưới là quy ước lịch sử cho luồng cũ, không áp dụng nguyên trạng cho Freelancer.
+
 Mục tiêu: 5 người làm song song mà code vẫn đồng nhất, ít xung đột, dễ review.
 
 ## 1. Kiến trúc phân lớp
