@@ -42,7 +42,7 @@ from app.models.freelancer_contracts import (
     Milestone,
 )
 from app.models.freelancer_operations import AuditLog, ScheduledJob
-from app.models.freelancer_payments import MilestoneFundingGuard, PaymentOrder
+from app.models.freelancer_payments import MilestoneFunding, MilestoneFundingGuard, PaymentOrder
 from app.routers.freelance_contracts import router as contracts_router
 from app.schemas.freelance_contracts import (
     ContractVersionCreate,
@@ -410,6 +410,197 @@ def test_c2_immutable_terms_guard(db_session, contract_fixtures):
                 milestone_terms=[
                     MilestoneTermInput(
                         title="Phase 1", amount=1500000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                    )
+                ],
+            ),
+        )
+    assert exc.value.code == "TERMS_IMMUTABLE"
+
+
+def test_c2_immutable_terms_rechecked_on_offer_and_accept(db_session, contract_fixtures):
+    """Terms are rechecked during offer_version_in_tx and accept_version_in_tx against funded milestones."""
+    f = contract_fixtures
+    service = FreelanceContractService()
+    ctx_client = make_ctx(f["client"].id)
+    ctx_student = make_ctx(f["student1"].id)
+
+    ref = service.create_contract_for_selected_application_in_tx(
+        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+    )
+
+    # v1 with 2 milestones
+    v1 = service.create_version_in_tx(
+        db_session,
+        ctx=ctx_client,
+        contract_id=ref.contract_id,
+        payload=ContractVersionCreate(
+            total_amount=2000000,
+            funding_policy=FundingPolicy.PER_MILESTONE,
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="Phase 1", amount=1000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                ),
+                MilestoneTermInput(
+                    title="Phase 2", amount=1000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 15), included=True,
+                ),
+            ],
+        ),
+    )
+    service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id)
+    service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash)
+
+    # 1. Test offer re-check: Create v2 DRAFT modifying Phase 1 BEFORE milestone is funded
+    v2 = service.create_version_in_tx(
+        db_session,
+        ctx=ctx_client,
+        contract_id=ref.contract_id,
+        payload=ContractVersionCreate(
+            total_amount=2000000,
+            funding_policy=FundingPolicy.PER_MILESTONE,
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="Phase 1 Modified", amount=1200000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                ),
+                MilestoneTermInput(
+                    title="Phase 2", amount=800000, acceptance_criteria="All done", due_at=datetime(2026, 12, 15), included=True,
+                ),
+            ],
+        ),
+    )
+    assert v2.status == ContractVersionStatus.DRAFT
+
+    # Now Phase 1 is funded after v2 was created
+    ms1 = db_session.query(Milestone).filter_by(contract_id=ref.contract_id, sequence_no=1).first()
+    ms1.status = MilestoneStatus.FUNDED
+    db_session.flush()
+
+    # Calling offer_version_in_tx must catch this and reject
+    with pytest.raises(ConflictError) as exc:
+        service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v2.id)
+    assert exc.value.code == "TERMS_IMMUTABLE"
+
+    # Reset ms1 to NOT_FUNDED temporarily to create and offer v3
+    ms1.status = MilestoneStatus.NOT_FUNDED
+    db_session.flush()
+
+    v3 = service.create_version_in_tx(
+        db_session,
+        ctx=ctx_client,
+        contract_id=ref.contract_id,
+        payload=ContractVersionCreate(
+            total_amount=2000000,
+            funding_policy=FundingPolicy.PER_MILESTONE,
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="Phase 1 Changed Again", amount=1100000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                ),
+                MilestoneTermInput(
+                    title="Phase 2", amount=900000, acceptance_criteria="All done", due_at=datetime(2026, 12, 15), included=True,
+                ),
+            ],
+        ),
+    )
+    service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v3.id)
+    assert v3.status == ContractVersionStatus.OFFERED
+
+    # Now Phase 1 gets funded while v3 is OFFERED before student accepts
+    ms1.status = MilestoneStatus.FUNDED
+    db_session.flush()
+
+    # Student attempting to accept v3 must be blocked by accept_version_in_tx recheck
+    with pytest.raises(ConflictError) as exc_acc:
+        service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v3.id, content_hash=v3.content_hash)
+    assert exc_acc.value.code == "TERMS_IMMUTABLE"
+
+
+def test_c2_immutable_terms_with_milestone_funding(db_session, contract_fixtures):
+    """Milestone with MilestoneFunding record cannot have its terms modified."""
+    f = contract_fixtures
+    service = FreelanceContractService()
+    ctx_client = make_ctx(f["client"].id)
+    ctx_student = make_ctx(f["student1"].id)
+
+    ref = service.create_contract_for_selected_application_in_tx(
+        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+    )
+
+    v1 = service.create_version_in_tx(
+        db_session,
+        ctx=ctx_client,
+        contract_id=ref.contract_id,
+        payload=ContractVersionCreate(
+            total_amount=2000000,
+            funding_policy=FundingPolicy.PER_MILESTONE,
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="Phase 1", amount=2000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                )
+            ],
+        ),
+    )
+    service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id)
+    service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash)
+
+    ms1 = db_session.query(Milestone).filter_by(contract_id=ref.contract_id, sequence_no=1).first()
+    # Add MilestoneFunding record with valid parent FK rows
+    from app.core.freelancer_enums import PaymentAllocationStatus
+    from app.models.freelancer_ledger import LedgerJournal
+    from app.models.freelancer_payments import PaymentTransaction
+
+    lj1 = LedgerJournal(
+        reference_type="PAYMENT",
+        reference_id=1,
+        idempotency_key="key-test-1",
+        description="receipt journal",
+        posted_at=datetime(2026, 12, 1),
+    )
+    db_session.add(lj1)
+    db_session.flush()
+
+    pt = PaymentTransaction(
+        channel_key="test-channel",
+        external_ref="ext-ref-1",
+        amount=2000000,
+        currency="VND",
+        receiving_account_ref="acc-1",
+        received_at=datetime(2026, 12, 1),
+        allocation_status=PaymentAllocationStatus.UNALLOCATED,
+        receipt_journal_id=lj1.id,
+        raw_payload_json={},
+    )
+    db_session.add(pt)
+    db_session.flush()
+
+    lj2 = LedgerJournal(
+        reference_type="FUNDING",
+        reference_id=1,
+        idempotency_key="key-test-2",
+        description="funding journal",
+        posted_at=datetime(2026, 12, 1),
+    )
+    db_session.add(lj2)
+    db_session.flush()
+
+    mf = MilestoneFunding(
+        milestone_id=ms1.id,
+        payment_transaction_id=pt.id,
+        amount=2000000,
+        funding_journal_id=lj2.id,
+    )
+    db_session.add(mf)
+    db_session.flush()
+
+    with pytest.raises(ConflictError) as exc:
+        service.create_version_in_tx(
+            db_session,
+            ctx=ctx_client,
+            contract_id=ref.contract_id,
+            payload=ContractVersionCreate(
+                total_amount=1500000,
+                funding_policy=FundingPolicy.PER_MILESTONE,
+                milestone_terms=[
+                    MilestoneTermInput(
+                        title="Phase 1", amount=1500000, acceptance_criteria="Modified", due_at=datetime(2026, 12, 1), included=True,
                     )
                 ],
             ),

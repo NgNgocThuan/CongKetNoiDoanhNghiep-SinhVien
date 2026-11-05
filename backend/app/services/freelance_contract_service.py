@@ -36,7 +36,12 @@ from app.models.freelancer_contracts import (
     ProjectContractBudget,
 )
 from app.models.freelancer_operations import AuditLog, ScheduledJob
-from app.models.freelancer_payments import EscrowAccount, MilestoneFundingGuard, PaymentOrder
+from app.models.freelancer_payments import (
+    EscrowAccount,
+    MilestoneFunding,
+    MilestoneFundingGuard,
+    PaymentOrder,
+)
 from app.schemas.freelance_contracts import ContractVersionCreate
 from app.services.freelancer_commands import run_command
 from app.utils.hashing import sha256_json
@@ -297,6 +302,73 @@ class FreelanceContractService(ContractPort):
     # Ticket C2: Contract Negotiation & Versioning Lifecycle
     # -------------------------------------------------------------------------
 
+    def _is_milestone_locked(self, db: Session, ms: Milestone) -> bool:
+        """A milestone is locked if funded, guarded, started, or has open payment order/escrow."""
+        if ms.status != MilestoneStatus.NOT_FUNDED:
+            return True
+        if db.query(MilestoneFunding).filter_by(milestone_id=ms.id).first() is not None:
+            return True
+        if db.query(EscrowAccount).filter_by(milestone_id=ms.id).first() is not None:
+            return True
+        if db.query(MilestoneFundingGuard).filter_by(milestone_id=ms.id).first() is not None:
+            return True
+        has_open_order = db.query(PaymentOrder).filter(
+            PaymentOrder.milestone_id == ms.id,
+            PaymentOrder.status.in_([
+                PaymentOrderStatus.CREATING,
+                PaymentOrderStatus.PENDING,
+                PaymentOrderStatus.PROCESSING,
+                PaymentOrderStatus.PAID,
+                PaymentOrderStatus.NEEDS_REVIEW,
+                PaymentOrderStatus.UNKNOWN,
+            ]),
+        ).first() is not None
+        if has_open_order:
+            return True
+        return False
+
+    def _assert_immutable_milestone_terms(
+        self,
+        db: Session,
+        *,
+        contract: FreelanceContract,
+        fee_rate_bp: int,
+        term_items: list[tuple[Milestone, object]],
+    ) -> None:
+        """Assert that milestones already funded, guarded, or started cannot be omitted or modified."""
+        existing_milestones = db.query(Milestone).filter_by(contract_id=contract.id).order_by(Milestone.id.asc()).all()
+        terms_by_ms_id = {ms.id: term for ms, term in term_items if ms is not None and ms.id is not None}
+        terms_by_seq = {ms.sequence_no: term for ms, term in term_items if ms is not None}
+
+        for ms in existing_milestones:
+            if not self._is_milestone_locked(db, ms):
+                continue
+
+            new_term = terms_by_ms_id.get(ms.id)
+            if new_term is None:
+                new_term = terms_by_seq.get(ms.sequence_no)
+            if new_term is None:
+                raise ConflictError("Cannot omit a funded, guarded, or started milestone", code="TERMS_IMMUTABLE")
+
+            if ms.effective_terms_id is not None:
+                eff_term = db.get(ContractMilestoneTerm, ms.effective_terms_id)
+                if eff_term is not None:
+                    eff_ver = db.get(ContractVersion, eff_term.contract_version_id)
+                    fee_changed = (eff_ver is not None and eff_ver.fee_rate_bp != fee_rate_bp)
+                    if (
+                        eff_term.title != new_term.title
+                        or eff_term.description != getattr(new_term, "description", None)
+                        or eff_term.amount != new_term.amount
+                        or eff_term.acceptance_criteria != new_term.acceptance_criteria
+                        or _norm_utc(eff_term.due_at) != _norm_utc(new_term.due_at)
+                        or not new_term.included
+                        or fee_changed
+                    ):
+                        raise ConflictError(
+                            "Cannot modify terms of a funded, guarded, or started milestone",
+                            code="TERMS_IMMUTABLE",
+                        )
+
     def create_version_in_tx(
         self,
         db: Session,
@@ -358,72 +430,11 @@ class FreelanceContractService(ContractPort):
             for m in db.query(Milestone).filter_by(contract_id=contract.id).order_by(Milestone.id.asc()).all()
         }
 
-        # Check if omitted milestones (sequence_no > len(payload.milestone_terms)) are protected
-        num_terms = len(payload.milestone_terms)
-        for seq, ms in existing_milestones.items():
-            if seq > num_terms:
-                has_guard = db.query(MilestoneFundingGuard).filter_by(milestone_id=ms.id).first() is not None
-                is_funded_or_started = ms.status != MilestoneStatus.NOT_FUNDED
-                has_escrow = False
-                escrow = db.query(EscrowAccount).filter_by(milestone_id=ms.id).first()
-                if escrow and (escrow.funded_amount > 0 or escrow.reserved_amount > 0):
-                    has_escrow = True
-                has_open_order = db.query(PaymentOrder).filter(
-                    PaymentOrder.milestone_id == ms.id,
-                    PaymentOrder.status.in_([
-                        PaymentOrderStatus.CREATING,
-                        PaymentOrderStatus.PENDING,
-                        PaymentOrderStatus.PROCESSING,
-                        PaymentOrderStatus.NEEDS_REVIEW,
-                        PaymentOrderStatus.UNKNOWN,
-                    ]),
-                ).first() is not None
-
-                if has_guard or is_funded_or_started or has_escrow or has_open_order:
-                    raise ConflictError("Cannot omit a funded, guarded, or started milestone", code="TERMS_IMMUTABLE")
-
         # Find or create Milestones for each term
         milestone_term_mappings = []
         for seq_idx, t in enumerate(payload.milestone_terms, start=1):
             ms = existing_milestones.get(seq_idx)
-            if ms:
-                # Check immutable invariants
-                has_guard = db.query(MilestoneFundingGuard).filter_by(milestone_id=ms.id).first() is not None
-                is_funded_or_started = ms.status != MilestoneStatus.NOT_FUNDED
-                has_escrow = False
-                escrow = db.query(EscrowAccount).filter_by(milestone_id=ms.id).first()
-                if escrow and (escrow.funded_amount > 0 or escrow.reserved_amount > 0):
-                    has_escrow = True
-                has_open_order = db.query(PaymentOrder).filter(
-                    PaymentOrder.milestone_id == ms.id,
-                    PaymentOrder.status.in_([
-                        PaymentOrderStatus.CREATING,
-                        PaymentOrderStatus.PENDING,
-                        PaymentOrderStatus.PROCESSING,
-                        PaymentOrderStatus.NEEDS_REVIEW,
-                        PaymentOrderStatus.UNKNOWN,
-                    ]),
-                ).first() is not None
-
-                if has_guard or is_funded_or_started or has_escrow or has_open_order:
-                    if ms.effective_terms_id is not None:
-                        eff_term = db.get(ContractMilestoneTerm, ms.effective_terms_id)
-                        eff_ver = db.get(ContractVersion, eff_term.contract_version_id) if eff_term else None
-                        if eff_term:
-                            fee_changed = (eff_ver is not None and eff_ver.fee_rate_bp != fee_rate_bp)
-                            if (
-                                eff_term.amount != t.amount
-                                or eff_term.acceptance_criteria != t.acceptance_criteria
-                                or eff_term.title != t.title
-                                or _norm_utc(eff_term.due_at) != _norm_utc(t.due_at)
-                                or not t.included
-                                or fee_changed
-                            ):
-                                raise ConflictError(
-                                    "Cannot modify terms of a funded, guarded, or started milestone",
-                                    code="TERMS_IMMUTABLE",
-                                )
-            else:
+            if not ms:
                 ms = Milestone(
                     contract_id=contract.id,
                     sequence_no=seq_idx,
@@ -434,6 +445,14 @@ class FreelanceContractService(ContractPort):
                 existing_milestones[seq_idx] = ms
 
             milestone_term_mappings.append((ms, t))
+
+        # Check immutable invariants on locked milestones
+        self._assert_immutable_milestone_terms(
+            db,
+            contract=contract,
+            fee_rate_bp=fee_rate_bp,
+            term_items=milestone_term_mappings,
+        )
 
         # Compute next version number
         max_ver = db.query(func.coalesce(func.max(ContractVersion.version_no), 0)).filter_by(
@@ -553,6 +572,16 @@ class FreelanceContractService(ContractPort):
         if version.status != ContractVersionStatus.DRAFT:
             raise ConflictError("Version is not draft", code="INVALID_STATE_TRANSITION")
 
+        # Re-check immutable terms invariants before offering version
+        version_terms = db.query(ContractMilestoneTerm).filter_by(contract_version_id=version.id).all()
+        term_items = [(db.get(Milestone, t.milestone_id), t) for t in version_terms if t.milestone_id is not None]
+        self._assert_immutable_milestone_terms(
+            db,
+            contract=contract,
+            fee_rate_bp=version.fee_rate_bp,
+            term_items=term_items,
+        )
+
         now = _norm_utc(ctx.now_utc)
 
         # Check existing OFFERED versions on this contract
@@ -655,6 +684,16 @@ class FreelanceContractService(ContractPort):
         if version.status != ContractVersionStatus.OFFERED:
             raise ConflictError("Version is not in OFFERED status", code="CONTRACT_VERSION_CONFLICT")
 
+        # Re-check immutable terms invariants before accepting version
+        version_terms = db.query(ContractMilestoneTerm).filter_by(contract_version_id=version.id).all()
+        term_items = [(db.get(Milestone, t.milestone_id), t) for t in version_terms if t.milestone_id is not None]
+        self._assert_immutable_milestone_terms(
+            db,
+            contract=contract,
+            fee_rate_bp=version.fee_rate_bp,
+            term_items=term_items,
+        )
+
         now = _norm_utc(ctx.now_utc)
         if version.acceptance_deadline and now > version.acceptance_deadline:
             self.expire_version_in_tx(db, ctx=ctx, version_id=version.id)
@@ -706,7 +745,9 @@ class FreelanceContractService(ContractPort):
             for term in terms:
                 ms = db.get(Milestone, term.milestone_id)
                 if ms:
-                    ms.effective_terms_id = term.id
+                    is_locked = self._is_milestone_locked(db, ms)
+                    if not is_locked or ms.effective_terms_id is None:
+                        ms.effective_terms_id = term.id
                     if not term.included and ms.status == MilestoneStatus.NOT_FUNDED:
                         ms.status = MilestoneStatus.CANCELLED
 

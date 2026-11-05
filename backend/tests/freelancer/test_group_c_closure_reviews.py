@@ -215,8 +215,12 @@ def test_c6_contract_cancellation_pre_activation(db_session, multi_contract_fixt
     service = FreelanceClosureService()
     ctx = make_ctx(f["client"].id)
 
-    # Make c2 draft with not funded milestone
+    # 1. Chiều 1: Hợp đồng DRAFT đang bình thường (dự án đang OPEN tuyển, milestone NOT_FUNDED, version DRAFT)
+    # Khi gọi recompute_contract_closure_in_tx thì KHÔNG bị tự hủy (vẫn giữ nguyên DRAFT và budget vẫn RESERVED)!
     f["c2"].status = ContractStatus.DRAFT
+    f["c2"].effective_version_id = None
+    v2 = db_session.get(ContractVersion, 302)
+    v2.status = ContractVersionStatus.DRAFT
     f["m2_1"].status = MilestoneStatus.NOT_FUNDED
     f["b2"].status = ContractBudgetStatus.RESERVED
     db_session.flush()
@@ -224,12 +228,72 @@ def test_c6_contract_cancellation_pre_activation(db_session, multi_contract_fixt
     service.recompute_contract_closure_in_tx(db_session, ctx=ctx, contract_id=f["c2"].id)
 
     db_session.refresh(f["c2"])
+    db_session.refresh(f["b2"])
+    assert f["c2"].status == ContractStatus.DRAFT
+    assert f["b2"].status == ContractBudgetStatus.RESERVED
+
+    # 2. Chiều 2: Khi các milestone của hợp đồng nháp đã chuyển sang CANCELLED và version thất bại
+    # lúc đó recompute_contract_closure_in_tx mới chuyển hợp đồng sang CANCELLED và giải phóng budget sang RELEASED!
+    f["m2_1"].status = MilestoneStatus.CANCELLED
+    v2.status = ContractVersionStatus.DECLINED
+    db_session.flush()
+
+    service.recompute_contract_closure_in_tx(db_session, ctx=ctx, contract_id=f["c2"].id)
+
+    db_session.refresh(f["c2"])
     assert f["c2"].status == ContractStatus.CANCELLED
+    assert f["c2"].closure_reason == "Cancelled before activation"
 
     # Pre-activation cancellation DOES release budget
     db_session.refresh(f["b2"])
     assert f["b2"].status == ContractBudgetStatus.RELEASED
     assert f["b2"].released_at is not None
+
+
+def test_c6_contract_cancellation_when_project_closed(db_session, multi_contract_fixtures):
+    """When project recruitment is closed and no active offered version, draft contract is cancelled."""
+    f = multi_contract_fixtures
+    service = FreelanceClosureService()
+    ctx = make_ctx(f["client"].id)
+
+    f["c2"].status = ContractStatus.DRAFT
+    f["c2"].effective_version_id = None
+    v2 = db_session.get(ContractVersion, 302)
+    v2.status = ContractVersionStatus.DRAFT
+    f["m2_1"].status = MilestoneStatus.NOT_FUNDED
+    f["b2"].status = ContractBudgetStatus.RESERVED
+    f["project"].recruitment_status = RecruitmentStatus.CLOSED
+    db_session.flush()
+
+    service.recompute_contract_closure_in_tx(db_session, ctx=ctx, contract_id=f["c2"].id)
+
+    db_session.refresh(f["c2"])
+    assert f["c2"].status == ContractStatus.CANCELLED
+    db_session.refresh(f["b2"])
+    assert f["b2"].status == ContractBudgetStatus.RELEASED
+
+
+def test_c6_explicit_cancel_draft_contract(db_session, multi_contract_fixtures):
+    """Explicitly cancelling a draft contract releases budget and marks milestones cancelled."""
+    f = multi_contract_fixtures
+    service = FreelanceClosureService()
+    ctx = make_ctx(f["client"].id)
+
+    f["c2"].status = ContractStatus.DRAFT
+    f["c2"].effective_version_id = None
+    f["m2_1"].status = MilestoneStatus.NOT_FUNDED
+    f["b2"].status = ContractBudgetStatus.RESERVED
+    db_session.flush()
+
+    service.cancel_draft_contract_in_tx(db_session, ctx=ctx, contract_id=f["c2"].id, reason="Client withdrew post")
+
+    db_session.refresh(f["c2"])
+    assert f["c2"].status == ContractStatus.CANCELLED
+    assert f["c2"].closure_reason == "Client withdrew post"
+    db_session.refresh(f["m2_1"])
+    assert f["m2_1"].status == MilestoneStatus.CANCELLED
+    db_session.refresh(f["b2"])
+    assert f["b2"].status == ContractBudgetStatus.RELEASED
 
 
 # =============================================================================
