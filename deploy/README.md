@@ -1,5 +1,8 @@
 # Server tự host trên Windows (bật khi cần)
 
+Hướng dẫn từng bước cho người vận hành (bật/tắt, cập nhật, máy mới, seed, backup, lỗi thường gặp):
+[HUONG_DAN_CHAY_SERVER.md](HUONG_DAN_CHAY_SERVER.md).
+
 ```
 Internet ─▶ Cloudflare Tunnel (HTTPS) ─▶ Caddy 127.0.0.1:8080 ─┬─▶ frontend/dist (React)
                                                                └─▶ FastAPI 127.0.0.1:8000 ─▶ MariaDB 127.0.0.1:3306
