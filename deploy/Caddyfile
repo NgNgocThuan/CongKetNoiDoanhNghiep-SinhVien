@@ -1,0 +1,27 @@
+# Caddy chỉ nghe nội bộ; HTTPS do Cloudflare Tunnel đảm nhiệm.
+{
+	admin off
+	auto_https off
+}
+
+http://:8080 {
+	bind 127.0.0.1
+	encode gzip
+
+	@backend path /api/* /health /docs /docs/*
+	handle @backend {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		root * "{$SC_FRONTEND_DIST}"
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+	}
+}
