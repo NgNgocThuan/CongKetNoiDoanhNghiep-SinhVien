@@ -20,6 +20,10 @@ export interface AdminStudent {
   major_id: number
   major_name: string
   cohort: string
+  academic_status?: string
+  graduated_at?: string | null
+  withdrawn_at?: string | null
+  account_expires_on?: string | null
   gpa: string | null
   academic_result: string | null
   phone: string | null
@@ -118,6 +122,9 @@ export interface StudentListParams {
 
 /** Bản cập nhật dữ liệu học thuật; trường nào không gửi thì backend giữ nguyên. */
 export interface StudentAcademicUpdate {
+  academic_status?: string
+  graduated_at?: string | null
+  withdrawn_at?: string | null
   full_name?: string
   date_of_birth?: string | null
   class_name?: string | null

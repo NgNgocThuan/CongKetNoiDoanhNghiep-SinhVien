@@ -5,7 +5,7 @@ Schema response kế thừa ORMModel (app.schemas.common).
 """
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -36,6 +36,10 @@ class AdminStudentRead(BaseModel):
     major_id: int
     major_name: str
     cohort: str
+    academic_status: str = "STUDYING"
+    graduated_at: Optional[date] = None
+    withdrawn_at: Optional[date] = None
+    account_expires_on: Optional[date] = None
     gpa: Optional[Decimal] = None
     academic_result: Optional[str] = None
     phone: Optional[str] = None
@@ -53,6 +57,9 @@ class StudentAcademicUpdate(BaseModel):
     faculty_id: Optional[int] = None
     major_id: Optional[int] = None
     cohort: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    academic_status: Optional[Literal["STUDYING", "GRADUATED", "SUSPENDED", "WITHDRAWN"]] = None
+    graduated_at: Optional[date] = None
+    withdrawn_at: Optional[date] = None
     gpa: Optional[Decimal] = Field(default=None, ge=0, le=4, max_digits=3, decimal_places=2)
     academic_result: Optional[str] = Field(default=None, max_length=50)
     phone: Optional[str] = Field(default=None, max_length=20)

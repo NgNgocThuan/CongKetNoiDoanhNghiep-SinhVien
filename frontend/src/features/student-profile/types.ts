@@ -32,6 +32,10 @@ export interface FullProfile {
     date_of_birth: string | null
     class_name: string | null
     cohort: string
+    academic_status?: string
+    graduated_at?: string | null
+    withdrawn_at?: string | null
+    account_expires_on?: string | null
     gpa: string | number | null
     academic_result: string | null
     phone: string | null

@@ -106,6 +106,8 @@ def apply(
     student: Student,
     data: ApplicationCreate,
 ) -> Application:
+    from app.services.student_lifecycle import require_new_activity
+    require_new_activity(student)
     job = db.scalar(
         select(Job)
         .where(Job.id == data.job_id)

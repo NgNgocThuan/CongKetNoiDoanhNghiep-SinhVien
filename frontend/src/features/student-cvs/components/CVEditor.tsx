@@ -20,6 +20,7 @@ const schema = z.object({
   summary: z.string(),
   experience: z.string(),
   projects: z.string(),
+  certificates: z.string().max(10000),
   career_goal: z.string(),
   contact_email: z.union([z.email(), z.literal('')]),
   contact_phone: z.string().max(20),
@@ -76,6 +77,7 @@ function CVForm({
   const defaults = cv
     ? content
     : {
+        certificates: [...official.certificates, ...self.certificates].map(item => [item.name, item.issuer].filter(Boolean).join(' · ')).join('\n'),
         summary: self.profile.bio,
         career_goal: self.profile.career_goal,
         skills: self.skills.map((skill) => skill.name),
@@ -105,6 +107,7 @@ function CVForm({
       summary: text(defaults.summary),
       experience: text(defaults.experience),
       projects: text(defaults.projects),
+      certificates: text(defaults.certificates),
       career_goal: text(defaults.career_goal),
       contact_email: text(defaults.contact_email),
       contact_phone: text(defaults.contact_phone),
@@ -168,6 +171,7 @@ function CVForm({
           ['summary', 'Giới thiệu'],
           ['career_goal', 'Mục tiêu nghề nghiệp'],
           ['experience', 'Kinh nghiệm'],
+          ['certificates', 'Chứng chỉ (ví dụ: TOEIC 850 · IIG · ngày cấp và hết hạn)'],
           ['projects', 'Dự án'],
         ] as const
       ).map(([key, label]) => (

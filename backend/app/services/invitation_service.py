@@ -37,6 +37,9 @@ def send_invitation(
     if not student:
         raise NotFoundError("Không tìm thấy hồ sơ sinh viên")
 
+    from app.services.student_lifecycle import require_new_activity
+    require_new_activity(student)
+
     # Kiểm tra profile và trạng thái tìm việc
     if (
         not student.profile

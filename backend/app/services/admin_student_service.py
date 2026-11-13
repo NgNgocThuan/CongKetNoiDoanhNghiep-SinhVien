@@ -63,6 +63,9 @@ HEADER_ALIASES = {
     "cohort": ("cohort", "khoa hoc", "nien khoa", "khoa tuyen sinh"),
     "gpa": ("gpa", "diem tb", "diem trung binh"),
     "academic_result": ("academic_result", "xep loai", "xep loai hoc luc"),
+    "academic_status": ("academic_status", "trang thai hoc tap"),
+    "graduated_at": ("graduated_at", "ngay tot nghiep"),
+    "withdrawn_at": ("withdrawn_at", "ngay thoi hoc"),
     "phone": ("phone", "so dien thoai", "sdt", "dien thoai"),
 }
 _ALIAS_TO_FIELD = {alias: field for field, aliases in HEADER_ALIASES.items() for alias in aliases}
@@ -88,6 +91,10 @@ def _student_row(student: Student) -> dict:
         "major_id": student.major_id,
         "major_name": student.major.name,
         "cohort": student.cohort,
+        "academic_status": student.academic_status,
+        "graduated_at": student.graduated_at,
+        "withdrawn_at": student.withdrawn_at,
+        "account_expires_on": student.account_expires_on,
         "gpa": student.gpa,
         "academic_result": student.academic_result,
         "phone": student.phone,
@@ -183,6 +190,9 @@ def update_academic_data(db: Session, student_id: int, data: StudentAcademicUpda
     if major.faculty_id != faculty_id:
         raise BadRequestError("Ngành không thuộc khoa đã chọn")
 
+    from app.services.student_lifecycle import reset_lifecycle, validate_academic
+    validate_academic(changes.get("academic_status", student.academic_status), changes.get("graduated_at", student.graduated_at), changes.get("withdrawn_at", student.withdrawn_at))
+    reset_lifecycle(student, changes)
     for field, value in changes.items():
         setattr(student, field, value)
     db.commit()
@@ -359,6 +369,11 @@ def _apply_row(
     """Tạo mới hoặc cập nhật một sinh viên. Raise _RowError nếu dữ liệu sai."""
     code = fields.get("student_code", "")
     student = db.scalar(select(Student).where(func.lower(Student.student_code) == code.lower()))
+    if student is None:
+        from app.models.student import RetiredStudent
+        from app.services.student_lifecycle import code_hash
+        if db.get(RetiredStudent, code_hash(code)):
+            raise _RowError("Hồ sơ đã hết hạn và được dọn sau tốt nghiệp; không tạo lại từ file import cũ.")
 
     missing = [f for f in REQUIRED_FIELDS if not fields.get(f)]
     if student is not None:
@@ -380,6 +395,19 @@ def _apply_row(
         if fields.get(field):
             values[field] = fields[field]
 
+    if fields.get("academic_status"):
+        raw_status = fields["academic_status"].strip().upper()
+        values["academic_status"] = {"ĐANG HỌC": "STUDYING", "ĐÃ TỐT NGHIỆP": "GRADUATED", "BẢO LƯU": "SUSPENDED", "THÔI HỌC": "WITHDRAWN"}.get(raw_status, raw_status)
+    for field in ("graduated_at", "withdrawn_at"):
+        if fields.get(field):
+            values[field] = _parse_date(fields[field])
+    from app.services.student_lifecycle import reset_lifecycle, validate_academic
+    try:
+        validate_academic(values.get("academic_status", student.academic_status if student else "STUDYING"), values.get("graduated_at", student.graduated_at if student else None), values.get("withdrawn_at", student.withdrawn_at if student else None))
+    except BadRequestError as exc:
+        raise _RowError(str(exc)) from exc
+    if student is not None:
+        reset_lifecycle(student, values)
     faculty = major = None
     if fields.get("faculty"):
         faculty = lookups.faculty(fields["faculty"])

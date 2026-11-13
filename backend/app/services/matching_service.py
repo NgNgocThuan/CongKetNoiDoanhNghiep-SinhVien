@@ -2,7 +2,7 @@
 
 from dataclasses import asdict
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.ai import cv_parser, job_parser
@@ -196,7 +196,8 @@ def _candidate_query(job):
         select(Student)
         .join(StudentProfile)
         .join(User)
-        .where(StudentProfile.is_open_to_work.is_(True), User.status == UserStatus.ACTIVE)
+        .where(StudentProfile.is_open_to_work.is_(True), User.status == UserStatus.ACTIVE, Student.academic_status != "WITHDRAWN")
+        .where(or_(Student.account_expires_on.is_(None), Student.account_expires_on > utcnow().date()))
     )
     return stmt
 

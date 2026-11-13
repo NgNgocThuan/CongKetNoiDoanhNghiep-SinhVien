@@ -179,6 +179,9 @@ class FreelanceContractService(ContractPort):
         if not student:
             raise NotFoundError("Student not found", code="NOT_FOUND")
 
+        from app.services.student_lifecycle import require_new_activity
+        require_new_activity(student)
+
         if project.client_user_id == student.user_id:
             raise ConflictError(
                 "Client and student must be distinct users", code="INVALID_STATE_TRANSITION"
@@ -730,6 +733,9 @@ class FreelanceContractService(ContractPort):
         if not student:
             raise NotFoundError("Student not found", code="NOT_FOUND")
 
+        from app.services.student_lifecycle import require_new_activity
+        require_new_activity(student)
+
         # Zero-Leak check
         if ctx.actor_user_id not in (contract.client_user_id, student.user_id):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
@@ -919,6 +925,9 @@ class FreelanceContractService(ContractPort):
         student = db.get(Student, contract.freelancer_student_id)
         if not student:
             raise NotFoundError("Student not found", code="NOT_FOUND")
+
+        from app.services.student_lifecycle import require_new_activity
+        require_new_activity(student)
 
         # Zero-Leak check
         if ctx.actor_user_id not in (contract.client_user_id, student.user_id):

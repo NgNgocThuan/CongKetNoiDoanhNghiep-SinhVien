@@ -62,5 +62,6 @@ Thumbs.db
 /backend/pytest-*/
 /backend/.pytest-run-*/
 /backend/.test-tmp/
+/backend/.test-tmp-grad-*/
 /frontend/design-reference/
 /frontend/docs/freelancer-previews/

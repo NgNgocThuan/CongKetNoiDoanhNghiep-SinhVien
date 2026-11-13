@@ -30,6 +30,10 @@ class StudentOfficialRead(ORMModel):
     date_of_birth: Optional[date] = None
     class_name: Optional[str] = None
     cohort: str
+    academic_status: str = "STUDYING"
+    graduated_at: Optional[date] = None
+    withdrawn_at: Optional[date] = None
+    account_expires_on: Optional[date] = None
     gpa: Optional[Decimal] = None
     academic_result: Optional[str] = None
     phone: Optional[str] = None

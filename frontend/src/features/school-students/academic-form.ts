@@ -8,6 +8,9 @@ export interface FormValues {
   faculty_id: number
   major_id: number
   cohort: string
+  academic_status?: string
+  graduated_at?: Dayjs | null
+  withdrawn_at?: Dayjs | null
   gpa: number | null
   academic_result: string
   phone: string
@@ -15,6 +18,7 @@ export interface FormValues {
 
 export function toUpdateBody(values: FormValues): StudentAcademicUpdate {
   return {
+    ...(values.academic_status ? { academic_status: values.academic_status, graduated_at: values.graduated_at?.format("YYYY-MM-DD") ?? null, withdrawn_at: values.withdrawn_at?.format("YYYY-MM-DD") ?? null } : {}),
     full_name: values.full_name.trim(),
     date_of_birth: values.date_of_birth ? values.date_of_birth.format('YYYY-MM-DD') : null,
     class_name: values.class_name?.trim() || null,

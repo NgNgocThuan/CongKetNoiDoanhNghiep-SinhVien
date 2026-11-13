@@ -11,13 +11,16 @@ export const IMPORT_COLUMNS = [
   { name: 'gpa', label: 'GPA', required: false, note: 'Thang 4, từ 0 đến 4' },
   { name: 'academic_result', label: 'Xếp loại', required: false, note: '' },
   { name: 'phone', label: 'Điện thoại', required: false, note: '' },
+  { name: 'academic_status', label: 'Trạng thái học tập', required: false, note: 'STUDYING / GRADUATED / SUSPENDED / WITHDRAWN. GRADUATED bắt buộc có ngày tốt nghiệp; hạn tài khoản 12 tháng.' },
+  { name: 'graduated_at', label: 'Ngày tốt nghiệp', required: false, note: 'dd/mm/yyyy hoặc yyyy-mm-dd; không ở tương lai' },
+  { name: 'withdrawn_at', label: 'Ngày thôi học', required: false, note: 'Bắt buộc khi WITHDRAWN; không ở tương lai. Thông báo dọn sau 30 ngày, hoãn nếu còn nghĩa vụ.' },
 ] as const
 
 export const MAX_IMPORT_MB = 10
 
 export function buildTemplateCsv(): string {
   const header = IMPORT_COLUMNS.map((c) => c.name).join(',')
-  const sample = ['SV001', 'Nguyễn Văn A', 'sv001@school.edu.vn', 'CNTT', 'KTPM', 'K65', '15/05/2003', 'K65A', '3.2', 'Khá', '0900000000']
+  const sample = ['SV001', 'Nguyễn Văn A', 'sv001@school.edu.vn', 'CNTT', 'KTPM', 'K65', '15/05/2003', 'K65A', '3.2', 'Khá', '0900000000', 'STUDYING', '', '']
   // BOM giúp Excel mở đúng tiếng Việt
   return '﻿' + header + '\n' + sample.join(',') + '\n'
 }

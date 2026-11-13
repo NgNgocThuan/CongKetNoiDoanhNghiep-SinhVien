@@ -1,5 +1,5 @@
 /** Sửa dữ liệu học thuật của sinh viên (chỉ nhà trường được sửa). Ngành phải thuộc khoa đã chọn. */
-import { App, DatePicker, Form, Input, InputNumber, Modal } from 'antd'
+import { App, DatePicker, Form, Input, InputNumber, Modal, Select } from 'antd'
 import dayjs from 'dayjs'
 import { FacultySelect, MajorSelect } from '@/features/catalog/selectors'
 import { getErrorMessage } from '@/features/school-shared/http'
@@ -30,6 +30,9 @@ export default function EditAcademicModal({
     faculty_id: student.faculty_id,
     major_id: student.major_id,
     cohort: student.cohort,
+    academic_status: student.academic_status || "STUDYING",
+    graduated_at: student.graduated_at ? dayjs(student.graduated_at) : null,
+    withdrawn_at: student.withdrawn_at ? dayjs(student.withdrawn_at) : null,
     gpa: student.gpa === null ? null : Number(student.gpa),
     academic_result: student.academic_result ?? '',
     phone: student.phone ?? '',
@@ -75,6 +78,15 @@ export default function EditAcademicModal({
         </Form.Item>
         <Form.Item name="cohort" label="Khóa học" rules={[{ required: true, message: 'Vui lòng nhập khóa' }]}>
           <Input maxLength={20} />
+        </Form.Item>
+        <Form.Item name="academic_status" label="Trạng thái học tập" extra="Tốt nghiệp: hỗ trợ 12 tháng. Thôi học: ngừng tham gia công việc mới, có 30 ngày lưu dữ liệu. Hệ thống gửi email và hoãn xóa nếu còn nghĩa vụ.">
+          <Select options={[{value:'STUDYING',label:'Đang học'},{value:'GRADUATED',label:'Đã tốt nghiệp'},{value:'SUSPENDED',label:'Bảo lưu'},{value:'WITHDRAWN',label:'Thôi học'}]} />
+        </Form.Item>
+        <Form.Item name="graduated_at" label="Ngày tốt nghiệp" dependencies={['academic_status']} rules={[({getFieldValue}) => ({validator(_, value) { return getFieldValue('academic_status') === 'GRADUATED' && !value ? Promise.reject(new Error('Vui lòng chọn ngày tốt nghiệp')) : Promise.resolve() }})]}>
+          <DatePicker format="DD/MM/YYYY" disabledDate={d => d.isAfter(dayjs())} />
+        </Form.Item>
+        <Form.Item name="withdrawn_at" label="Ngày thôi học" dependencies={['academic_status']} rules={[({getFieldValue}) => ({validator(_, value) { return getFieldValue('academic_status') === 'WITHDRAWN' && !value ? Promise.reject(new Error('Vui lòng chọn ngày thôi học')) : Promise.resolve() }})]}>
+          <DatePicker format="DD/MM/YYYY" disabledDate={d => d.isAfter(dayjs())} />
         </Form.Item>
         <Form.Item name="gpa" label="GPA (thang 4)">
           <InputNumber min={0} max={4} step={0.01} style={{ width: '100%' }} />

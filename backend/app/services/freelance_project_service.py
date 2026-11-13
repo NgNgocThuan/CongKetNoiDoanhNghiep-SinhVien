@@ -438,6 +438,8 @@ def list_projects(db, *, user_id, mine=False, number=1, size=20, search=None, ca
 
 def apply_in_tx(db, *, user_id, project_id, payload):
     s = student(db, user_id)
+    from app.services.student_lifecycle import require_new_activity
+    require_new_activity(s)
     p = lock(db, FreelanceProject, id=project_id)
     if not p or p.status not in LIVE or p.recruitment_status != RecruitmentStatus.OPEN:
         raise ConflictError("Project is not recruiting")

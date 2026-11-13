@@ -431,6 +431,11 @@ def test_c2_version_lifecycle_and_content_hash(db_session, contract_fixtures):
     assert ms1.effective_terms_id is not None
 
     # Verify financial terms retrieval (C1)
+    # Leaving school must not block settlement of an existing obligation.
+    from app.models import Student
+    departing_student = db_session.get(Student, contract.freelancer_student_id)
+    departing_student.academic_status = "WITHDRAWN"
+    db_session.flush()
     fin_terms = service.get_milestone_financial_terms(db_session, milestone_id=ms1.id)
     assert fin_terms.amount == 800000
     assert fin_terms.fee_rate_bp == 500

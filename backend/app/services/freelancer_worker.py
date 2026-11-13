@@ -265,8 +265,10 @@ def process_one(db, model, record_id, worker_id):
 
 
 def run_once(db, *, limit=20):
+    from app.services.student_lifecycle import process_graduates
+
     worker_id = uuid4().hex
-    processed = 0
+    processed = process_graduates(db, limit=limit)
     for model in (ScheduledJob, OutboxEvent):
         for _ in range(limit):
             record_id = claim(db, model, worker_id)

@@ -50,6 +50,12 @@ class Student(TimestampMixin, Base):
     faculty_id: Mapped[int] = fk("faculties.id")
     major_id: Mapped[int] = fk("majors.id")
     cohort: Mapped[str] = mapped_column(String(20), nullable=False)  # khóa học, vd: K65
+    academic_status: Mapped[str] = mapped_column(String(20), nullable=False, default="STUDYING", server_default="STUDYING")
+    graduated_at: Mapped[Optional[date]] = mapped_column(Date)
+    withdrawn_at: Mapped[Optional[date]] = mapped_column(Date)
+    account_expires_on: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    lifecycle_stage: Mapped[str] = mapped_column(String(30), nullable=False, default="NONE", server_default="NONE")
+    lifecycle_check_on: Mapped[Optional[date]] = mapped_column(Date, index=True)
     gpa: Mapped[Optional[Decimal]] = mapped_column(Numeric(3, 2))
     academic_result: Mapped[Optional[str]] = mapped_column(String(50))
     phone: Mapped[Optional[str]] = mapped_column(String(20))
@@ -97,6 +103,13 @@ class Student(TimestampMixin, Base):
         Index("idx_students_cohort", "cohort"),
         CheckConstraint("gpa IS NULL OR (gpa >= 0 AND gpa <= 4)", name="gpa_range"),
     )
+
+
+class RetiredStudent(Base):
+    """Anonymous marker prevents subsequent school imports recreating expired accounts."""
+    __tablename__ = "retired_students"
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    retired_on: Mapped[date] = mapped_column(Date, nullable=False)
 
 
 class StudentAchievement(Base):

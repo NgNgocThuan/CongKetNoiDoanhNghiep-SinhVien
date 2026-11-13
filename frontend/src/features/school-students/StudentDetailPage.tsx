@@ -118,6 +118,10 @@ function OfficialTab({ detail, studentId, onEdit }: { detail: StudentDetail['off
           <Descriptions.Item label="Khoa">{a.faculty_name}</Descriptions.Item>
           <Descriptions.Item label="Ngành">{a.major_name}</Descriptions.Item>
           <Descriptions.Item label="Khóa học">{a.cohort}</Descriptions.Item>
+          <Descriptions.Item label="Trạng thái học tập">{({STUDYING: 'Đang học', GRADUATED: 'Cựu sinh viên', SUSPENDED: 'Bảo lưu', WITHDRAWN: 'Thôi học'} as Record<string, string>)[a.academic_status || 'STUDYING']}</Descriptions.Item>
+          <Descriptions.Item label="Ngày tốt nghiệp">{a.graduated_at || '—'}</Descriptions.Item>
+          <Descriptions.Item label="Ngày thôi học">{a.withdrawn_at || '—'}</Descriptions.Item>
+          <Descriptions.Item label="Hạn tài khoản">{a.account_expires_on || 'Chưa áp dụng'}</Descriptions.Item>
           <Descriptions.Item label="GPA (thang 4)">{a.gpa ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Xếp loại">{a.academic_result ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Điện thoại">{a.phone ?? '—'}</Descriptions.Item>
