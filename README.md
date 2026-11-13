@@ -20,6 +20,17 @@ Tài liệu: [xác minh doanh nghiệp](docs/COMPANY_AUTHORITY_VERIFICATION.md),
 - Frontend: React + TypeScript + Vite. Xem [hướng dẫn frontend](frontend/README.md).
 - Database: MariaDB, kết nối qua PyMySQL. Docker Compose hiện dùng MariaDB 10.11.
 
+## Server công khai (deploy)
+
+Bản chạy thật: **https://congketnoisinhvien.id.vn**, tự host trên một máy Windows qua Cloudflare Tunnel.
+Cách bật/tắt, cập nhật code, cài trên máy mới, seed dữ liệu, backup và xử lý lỗi:
+[deploy/HUONG_DAN_CHAY_SERVER.md](deploy/HUONG_DAN_CHAY_SERVER.md).
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\start-server.ps1   # bật
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\stop-server.ps1    # tắt (tự backup)
+```
+
 ## Chạy bản demo 31/10/2026 trên máy
 
 Từ thư mục gốc repository sau khi cập nhật `main`:
