@@ -66,6 +66,10 @@ def approve_company(
     if company.user is not None and company.user.status == UserStatus.LOCKED:
         raise ConflictError("Tài khoản doanh nghiệp đang bị khóa, không thể phê duyệt")
 
+    from app.core.freelancer_enums import BusinessStatus
+    if company.business_status != BusinessStatus.VERIFIED:
+        raise ConflictError('Hãy xác minh pháp nhân và quyền đại diện tại mục Xác minh doanh nghiệp trước khi kích hoạt tài khoản.')
+
     if company.verification_status == VerificationStatus.APPROVED:
         raise ConflictError("Doanh nghiệp đã được phê duyệt trước đó")
 

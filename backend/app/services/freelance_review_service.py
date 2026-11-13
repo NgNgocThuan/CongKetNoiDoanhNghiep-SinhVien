@@ -1,4 +1,5 @@
 """Freelance review service: Mutual 2-way post-terminal evaluations (Ticket C6)."""
+
 from sqlalchemy.orm import Session
 
 from app.contracts.freelancer.types import CommandContext
@@ -25,7 +26,7 @@ from app.services.freelancer_commands import run_command
 def _for_update(query, db: Session):
     bind = db.get_bind()
     if bind is not None and bind.dialect.name != "sqlite":
-        return query.with_for_update()
+        return query.populate_existing().with_for_update()
     return query
 
 
@@ -48,7 +49,9 @@ class FreelanceReviewService:
 
         # Global lock ordering: project -> contract
         _for_update(db.query(FreelanceProject).filter_by(id=contract_raw.project_id), db).first()
-        contract = _for_update(db.query(FreelanceContract).filter_by(id=contract_raw.id), db).first()
+        contract = _for_update(
+            db.query(FreelanceContract).filter_by(id=contract_raw.id), db
+        ).first()
 
         student = db.get(Student, contract.freelancer_student_id)
         if not student:
@@ -70,13 +73,23 @@ class FreelanceReviewService:
 
         # Contract terminal status check
         if contract.status not in (ContractStatus.COMPLETED, ContractStatus.TERMINATED):
-            raise ConflictError("Contract must be completed or terminated before reviewing", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Contract must be completed or terminated before reviewing",
+                code="INVALID_STATE_TRANSITION",
+            )
 
         # Spec 7.7 invariant: Paid work required
-        has_paid_work = db.query(Milestone).filter(
-            Milestone.contract_id == contract.id,
-            Milestone.status.in_([MilestoneStatus.PAID_OUT, MilestoneStatus.PARTIALLY_RELEASED]),
-        ).first() is not None
+        has_paid_work = (
+            db.query(Milestone)
+            .filter(
+                Milestone.contract_id == contract.id,
+                Milestone.status.in_(
+                    [MilestoneStatus.PAID_OUT, MilestoneStatus.PARTIALLY_RELEASED]
+                ),
+            )
+            .first()
+            is not None
+        )
 
         if not has_paid_work:
             raise ConflictError(
@@ -85,12 +98,18 @@ class FreelanceReviewService:
             )
 
         # Unique review per party
-        existing = db.query(FreelanceReview).filter_by(
-            contract_id=contract.id,
-            reviewer_user_id=ctx.actor_user_id,
-        ).first()
+        existing = (
+            db.query(FreelanceReview)
+            .filter_by(
+                contract_id=contract.id,
+                reviewer_user_id=ctx.actor_user_id,
+            )
+            .first()
+        )
         if existing:
-            raise ConflictError("You have already reviewed this contract", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "You have already reviewed this contract", code="INVALID_STATE_TRANSITION"
+            )
 
         review = FreelanceReview(
             contract_id=contract.id,
@@ -129,7 +148,11 @@ class FreelanceReviewService:
         return run_command(
             db,
             lambda: self.create_review_in_tx(
-                db, ctx=ctx, contract_id=contract_id, rating=rating, comment=comment,
+                db,
+                ctx=ctx,
+                contract_id=contract_id,
+                rating=rating,
+                comment=comment,
             ),
         )
 

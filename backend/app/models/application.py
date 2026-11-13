@@ -58,6 +58,10 @@ class Application(Base):
         default=ApplicationStatus.APPLIED,
         server_default=ApplicationStatus.APPLIED.value,
     )
+    # Nhiệm vụ 3: mời phỏng vấn trực tiếp trên Job Board (không cần bảng riêng).
+    interview_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    interview_location: Mapped[Optional[str]] = mapped_column(String(255))
+    interview_notes: Mapped[Optional[str]] = mapped_column(Text)
     applied_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), onupdate=func.now()

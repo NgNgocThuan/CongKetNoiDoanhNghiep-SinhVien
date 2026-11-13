@@ -5,7 +5,7 @@ from fastapi import APIRouter, File, Form, Response, UploadFile
 from fastapi.responses import FileResponse
 
 from app.dependencies import CurrentStudent, CurrentUser, DbSession
-from app.schemas.cvs import CVAnalysisRead, CVOnlineCreate, CVRead, CVUpdate
+from app.schemas.cvs import ConfirmCVSkills, CVAnalysisRead, CVOnlineCreate, CVRead, CVUpdate
 from app.services import cv_service
 
 router = APIRouter(prefix="/cvs", tags=["CVs"])
@@ -56,3 +56,8 @@ def download_cv(cv_id: int, db: DbSession, user: CurrentUser):
 @router.post("/{cv_id}/analyze", response_model=CVAnalysisRead, summary="Phân tích CV bằng AI")
 def analyze_cv(cv_id: int, db: DbSession, student: CurrentStudent):
     return cv_service.analyze_cv(db, student, cv_id)
+
+
+@router.post("/{cv_id}/confirm-skills", summary="Xác nhận kỹ năng trích xuất từ CV vào hồ sơ")
+def confirm_skills(cv_id: int, data: ConfirmCVSkills, db: DbSession, student: CurrentStudent):
+    return cv_service.confirm_cv_skills(db, student, cv_id, data.skills)

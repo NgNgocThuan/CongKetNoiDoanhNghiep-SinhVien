@@ -9,13 +9,12 @@ from app.schemas.school_common import SchoolInput
 
 class DashboardFilter(SchoolInput):
     model_config = ConfigDict(extra="ignore")
-    group_by: Literal["major", "faculty", "cohort", "term"] = "major"
+    group_by: Literal["major", "faculty", "cohort"] = "major"
     date_from: date | None = None
     date_to: date | None = None
     faculty_id: int | None = Field(None, gt=0)
     major_id: int | None = Field(None, gt=0)
     cohort: str | None = None
-    term_id: int | None = Field(None, gt=0)
 
     @model_validator(mode="after")
     def valid_dates(self):
@@ -31,6 +30,18 @@ class OverviewStats(ORMModel):
     applications: int
     interviews: int
     hired: int
+
+
+class FreelancerOverviewStats(ORMModel):
+    platform_fee_revenue: int
+    disbursed_amount: int
+    total_projects: int
+    pending_review_projects: int
+    recruiting_projects: int
+    in_progress_projects: int
+    completed_projects: int
+    open_disputes: int
+    pending_payouts: int
 
 
 class BreakdownRow(ORMModel):
@@ -63,10 +74,3 @@ class TrendPoint(ORMModel):
     jobs: int
     applications: int
     skills: list[SkillStat]
-
-
-class FlowComparison(ORMModel):
-    flow: Literal["free", "term"]
-    jobs: int
-    applications: int
-    hired: int

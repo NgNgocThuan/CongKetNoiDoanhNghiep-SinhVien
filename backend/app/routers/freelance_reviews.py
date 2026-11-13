@@ -1,4 +1,5 @@
 """FastAPI router for mutual contract reviews."""
+
 import uuid
 from datetime import datetime, timezone
 
@@ -19,7 +20,9 @@ router = APIRouter(tags=["Freelance Reviews"])
 service = FreelanceReviewService()
 
 
-def _build_context(user: CurrentUser, request_id: str | None, idempotency_key: str | None) -> CommandContext:
+def _build_context(
+    user: CurrentUser, request_id: str | None, idempotency_key: str | None
+) -> CommandContext:
     return CommandContext(
         actor_user_id=user.id,
         actor_type=ActorType.USER,
@@ -69,14 +72,18 @@ def list_contract_reviews(
     ]
 
 
-@router.post("/freelance-contracts/{contract_id}/reviews", response_model=FreelanceReviewRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/freelance-contracts/{contract_id}/reviews",
+    response_model=FreelanceReviewRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_review(
     contract_id: int,
     payload: FreelanceReviewCreate,
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     review = service.create_review(

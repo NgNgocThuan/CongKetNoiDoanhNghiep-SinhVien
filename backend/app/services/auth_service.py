@@ -1,6 +1,6 @@
 """Nghiệp vụ: Xác thực & phiên đăng nhập. Người phụ trách: TV1."""
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import BackgroundTasks
@@ -333,6 +333,8 @@ def register_company(db: Session, data: RegisterCompanyRequest) -> dict:
         password_hash=hash_password(data.password),
         role=UserRole.COMPANY,
         status=UserStatus.PENDING_APPROVAL,
+        registration_terms_accepted_at=datetime.now(timezone.utc),
+        registration_terms_version=data.terms_acceptance.version,
     )
     db.add(user)
     db.flush()

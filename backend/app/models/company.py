@@ -2,14 +2,20 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Index, String, Text, func
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Index, String, Text, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums import CompanyDocType, CompanySize, VerificationStatus
+from app.core.enums import (
+    CompanyDocType,
+    CompanySize,
+    CompanyVerificationStatus,
+    VerificationStatus,
+)
 from app.core.freelancer_enums import BusinessStatus, CompanyOperationStatus
-from app.models.base import Base, TimestampMixin, db_enum, fk, pk
+from app.models.base import Base, TimestampMixin, UInt, db_enum, fk, pk
 from app.models.catalog import Industry
 from app.models.freelancer_base import UTCDateTime, state_type
+from app.models.freelancer_identity import StoredFile
 
 if TYPE_CHECKING:
     from app.models.job import Job
@@ -73,6 +79,9 @@ class Company(TimestampMixin, Base):
         back_populates="company", cascade="all, delete-orphan"
     )
     jobs: Mapped[list["Job"]] = relationship(back_populates="company")
+    company_verification: Mapped[Optional["CompanyVerification"]] = relationship(
+        back_populates="company", uselist=False
+    )
 
     __table_args__ = (
         Index("idx_companies_status", "verification_status"),
@@ -97,3 +106,51 @@ class CompanyDocument(Base):
     company: Mapped["Company"] = relationship(back_populates="documents")
 
     __table_args__ = (Index("idx_cdocs_company", "company_id"),)
+
+
+class CompanyVerification(TimestampMixin, Base):
+    """Nhiệm vụ 1: lượt xác minh doanh nghiệp 2 bước (OTP email + GPKD).
+
+    Mỗi công ty có tối đa một bản ghi đang chờ/duyệt (company_id UNIQUE).
+    OTP chỉ lưu hash — không bao giờ lưu mã gốc.
+    """
+
+    __tablename__ = "company_verifications"
+
+    id: Mapped[int] = pk()
+    company_id: Mapped[int] = fk("companies.id", ondelete="CASCADE", unique=True)
+    tax_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    legal_representative: Mapped[str] = mapped_column(String(100), nullable=False)
+    business_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    license_file_id: Mapped[Optional[int]] = fk(
+        "stored_files.id", ondelete="RESTRICT", nullable=True
+    )
+    email_otp_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    email_otp_code_hash: Mapped[Optional[str]] = mapped_column(String(255))
+    email_otp_expires_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    email_otp_attempts: Mapped[int] = mapped_column(
+        UInt, nullable=False, default=0, server_default="0"
+    )
+    email_otp_resend_after: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    verification_status: Mapped[CompanyVerificationStatus] = mapped_column(
+        state_type(CompanyVerificationStatus, "company_verifications_verification_status"),
+        nullable=False,
+        default=CompanyVerificationStatus.PENDING,
+        server_default=CompanyVerificationStatus.PENDING.value,
+    )
+    reviewer_user_id: Mapped[Optional[int]] = fk("users.id", ondelete="RESTRICT", nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(Text)
+    authority_data: Mapped[Optional[dict]] = mapped_column(JSON)
+
+    company: Mapped["Company"] = relationship(back_populates="company_verification")
+    license_file: Mapped[Optional["StoredFile"]] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("email_otp_attempts >= 0", name="email_otp_attempts_nonnegative"),
+        Index("ix_company_verifications_verification_status_created_at", "verification_status", "created_at"),
+        Index("ix_company_verifications_reviewer_user_id", "reviewer_user_id"),
+    )

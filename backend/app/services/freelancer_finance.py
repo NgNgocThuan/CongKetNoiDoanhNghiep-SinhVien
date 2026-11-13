@@ -1,4 +1,5 @@
 """Fail closed until the project owner supplies the real financial writer."""
+
 from app.core.exceptions import AppException
 
 
@@ -32,6 +33,12 @@ class UnavailableFinancePort:
         return self._unavailable()
 
 
-def get_finance_port() -> UnavailableFinancePort:
+def get_finance_port():
     """Explicit factory; missing provider configuration never enables a fake."""
+    from app.core.config import settings
+
+    if settings.FREELANCER_FINANCE_ENABLED:
+        from app.services.freelancer_financial_writer import DatabaseFinancePort
+
+        return DatabaseFinancePort()
     return UnavailableFinancePort()

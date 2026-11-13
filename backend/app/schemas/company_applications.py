@@ -12,10 +12,14 @@ from app.schemas.common import ORMModel
 class ApplicationStatusUpdate(BaseModel):
     status: ApplicationStatus
     note: str | None = Field(None, max_length=500)
+    interview_time: datetime | None = None
+    interview_location: str | None = Field(None, max_length=255)
+    interview_notes: str | None = Field(None, max_length=500)
 
 
 class StudentInfoNested(ORMModel):
     id: int
+    user_id: int
     full_name: str
     gpa: float | None = None
     experience_months: int = 0
@@ -37,6 +41,9 @@ class CompanyApplicationRead(ORMModel):
     status_logs: list[StatusLogRead] = Field(default_factory=list)
     cv_snapshot_url: str | None = None
     cv_download_url: str
+    interview_time: datetime | None = None
+    interview_location: str | None = None
+    interview_notes: str | None = None
 
 
 class CompanyApplicationDetail(CompanyApplicationRead):

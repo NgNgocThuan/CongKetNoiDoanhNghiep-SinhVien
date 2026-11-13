@@ -1,7 +1,7 @@
 """Freelance contract service: ContractPort implementation and version negotiations (C1, C2)."""
-from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.contracts.freelancer.ports import ContractPort
@@ -60,7 +60,7 @@ def _for_update(query, db: Session):
     """Apply with_for_update only on engines that support row-level locking."""
     bind = db.get_bind()
     if bind is not None and bind.dialect.name != "sqlite":
-        return query.with_for_update()
+        return query.populate_existing().with_for_update()
     return query
 
 
@@ -75,9 +75,13 @@ def _lock_contract_hierarchy(
     contract_raw = db.get(FreelanceContract, contract_id)
     if not contract_raw:
         return None, None, None, None, []
-    project = _for_update(db.query(FreelanceProject).filter_by(id=contract_raw.project_id), db).first()
+    project = _for_update(
+        db.query(FreelanceProject).filter_by(id=contract_raw.project_id), db
+    ).first()
     contract = _for_update(db.query(FreelanceContract).filter_by(id=contract_raw.id), db).first()
-    budget = _for_update(db.query(ProjectContractBudget).filter_by(contract_id=contract_raw.id), db).first()
+    budget = _for_update(
+        db.query(ProjectContractBudget).filter_by(contract_id=contract_raw.id), db
+    ).first()
     version = None
     if version_id is not None:
         version = _for_update(db.query(ContractVersion).filter_by(id=version_id), db).first()
@@ -117,7 +121,9 @@ def compute_version_content_hash(
                     "acceptance_criteria": t["acceptance_criteria"],
                     "amount": t["amount"],
                     "description": t.get("description"),
-                    "due_at": t["due_at"].isoformat() if hasattr(t["due_at"], "isoformat") else str(t["due_at"]),
+                    "due_at": t["due_at"].isoformat()
+                    if hasattr(t["due_at"], "isoformat")
+                    else str(t["due_at"]),
                     "included": bool(t.get("included", True)),
                     "milestone_id": t["milestone_id"],
                     "sequence_no": t["sequence_no"],
@@ -152,8 +158,11 @@ class FreelanceContractService(ContractPort):
         allocated_amount: int,
     ) -> ContractRef:
         """Create a contract and reserve budget for a selected application under lock."""
-        if allocated_amount <= 0:
-            raise UnprocessableError("Allocated amount must be positive", code="VALIDATION_ERROR")
+        if allocated_amount <= 2000:
+            raise UnprocessableError(
+                "Escrow amount must be greater than 2,000 VND",
+                code="VALIDATION_ERROR",
+            )
 
         # 1. Lock project row
         project = _for_update(db.query(FreelanceProject).filter_by(id=project_id), db).first()
@@ -171,16 +180,24 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Student not found", code="NOT_FOUND")
 
         if project.client_user_id == student.user_id:
-            raise ConflictError("Client and student must be distinct users", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Client and student must be distinct users", code="INVALID_STATE_TRANSITION"
+            )
 
         # 4. Check idempotency replay for same project and student
-        existing_contract = db.query(FreelanceContract).filter_by(
-            project_id=project.id,
-            freelancer_student_id=student.id,
-        ).first()
+        existing_contract = (
+            db.query(FreelanceContract)
+            .filter_by(
+                project_id=project.id,
+                freelancer_student_id=student.id,
+            )
+            .first()
+        )
 
         if existing_contract:
-            budget = db.query(ProjectContractBudget).filter_by(contract_id=existing_contract.id).first()
+            budget = (
+                db.query(ProjectContractBudget).filter_by(contract_id=existing_contract.id).first()
+            )
             if (
                 existing_contract.application_id == application_id
                 and budget is not None
@@ -194,30 +211,57 @@ class FreelanceContractService(ContractPort):
                     status=ContractStatus(existing_contract.status),
                     allocated_amount=budget.allocated_amount,
                 )
-            raise ConflictError("Contract already exists for this student in project", code="IDEMPOTENCY_CONFLICT")
+            raise ConflictError(
+                "Contract already exists for this student in project", code="IDEMPOTENCY_CONFLICT"
+            )
 
         # 5. Application state transition
         now = _norm_utc(ctx.now_utc)
-        if application.status in (FreelanceApplicationStatus.SUBMITTED, FreelanceApplicationStatus.SHORTLISTED):
+        if application.status in (
+            FreelanceApplicationStatus.SUBMITTED,
+            FreelanceApplicationStatus.SHORTLISTED,
+        ):
             application.status = FreelanceApplicationStatus.SELECTED
             application.selected_at = now
         elif application.status != FreelanceApplicationStatus.SELECTED:
-            raise ConflictError("Application must be in SUBMITTED, SHORTLISTED, or SELECTED status", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Application must be in SUBMITTED, SHORTLISTED, or SELECTED status",
+                code="INVALID_STATE_TRANSITION",
+            )
 
-        # 6. Check max_students capacity
-        active_contract_count = db.query(func.count(FreelanceContract.id)).filter(
-            FreelanceContract.project_id == project.id,
-            FreelanceContract.status != ContractStatus.CANCELLED,
-        ).scalar() or 0
+        # Current reads are essential under InnoDB REPEATABLE READ after waiting for a parent lock.
+        active_contract_count = len(
+            _for_update(
+                db.query(FreelanceContract)
+                .filter(
+                    FreelanceContract.project_id == project.id,
+                    FreelanceContract.status != ContractStatus.CANCELLED,
+                )
+                .order_by(FreelanceContract.id),
+                db,
+            ).all()
+        )
 
         if active_contract_count >= project.max_students:
-            raise ConflictError("Project student capacity exceeded", code="PROJECT_CAPACITY_EXCEEDED")
+            raise ConflictError(
+                "Project student capacity exceeded", code="PROJECT_CAPACITY_EXCEEDED"
+            )
 
         # 7. Check project budget ceiling
-        current_allocated = db.query(func.coalesce(func.sum(ProjectContractBudget.allocated_amount), 0)).filter(
-            ProjectContractBudget.project_id == project.id,
-            ProjectContractBudget.status.in_([ContractBudgetStatus.RESERVED, ContractBudgetStatus.COMMITTED]),
-        ).scalar() or 0
+        current_allocated = sum(
+            b.allocated_amount
+            for b in _for_update(
+                db.query(ProjectContractBudget)
+                .filter(
+                    ProjectContractBudget.project_id == project.id,
+                    ProjectContractBudget.status.in_(
+                        [ContractBudgetStatus.RESERVED, ContractBudgetStatus.COMMITTED]
+                    ),
+                )
+                .order_by(ProjectContractBudget.id),
+                db,
+            ).all()
+        )
 
         if current_allocated + allocated_amount > project.budget_amount:
             raise ConflictError("Project budget exceeded", code="PROJECT_BUDGET_EXCEEDED")
@@ -255,6 +299,17 @@ class FreelanceContractService(ContractPort):
                 request_id=ctx.request_id,
             )
         )
+        from app.services.freelancer_domain import notify
+
+        recipient_id = student.user_id if ctx.actor_user_id == contract.client_user_id else contract.client_user_id
+        notify(
+            db,
+            recipient_id,
+            "Bạn đã được chọn cho dự án Freelancer",
+            f'Người thuê đã tạo hợp đồng nháp cho dự án "{project.title}". Hãy mở hợp đồng để theo dõi điều khoản.',
+            ref_type="FREELANCE_CONTRACT",
+            ref_id=contract.id,
+        )
         db.flush()
 
         return ContractRef(
@@ -265,7 +320,9 @@ class FreelanceContractService(ContractPort):
             allocated_amount=allocated_amount,
         )
 
-    def get_milestone_financial_terms(self, db: Session, *, milestone_id: int) -> MilestoneFinancialTerms:
+    def get_milestone_financial_terms(
+        self, db: Session, *, milestone_id: int
+    ) -> MilestoneFinancialTerms:
         """Fetch immutable terms for an effective milestone."""
         milestone = db.get(Milestone, milestone_id)
         if not milestone or milestone.effective_terms_id is None:
@@ -312,17 +369,24 @@ class FreelanceContractService(ContractPort):
             return True
         if db.query(MilestoneFundingGuard).filter_by(milestone_id=ms.id).first() is not None:
             return True
-        has_open_order = db.query(PaymentOrder).filter(
-            PaymentOrder.milestone_id == ms.id,
-            PaymentOrder.status.in_([
-                PaymentOrderStatus.CREATING,
-                PaymentOrderStatus.PENDING,
-                PaymentOrderStatus.PROCESSING,
-                PaymentOrderStatus.PAID,
-                PaymentOrderStatus.NEEDS_REVIEW,
-                PaymentOrderStatus.UNKNOWN,
-            ]),
-        ).first() is not None
+        has_open_order = (
+            db.query(PaymentOrder)
+            .filter(
+                PaymentOrder.milestone_id == ms.id,
+                PaymentOrder.status.in_(
+                    [
+                        PaymentOrderStatus.CREATING,
+                        PaymentOrderStatus.PENDING,
+                        PaymentOrderStatus.PROCESSING,
+                        PaymentOrderStatus.PAID,
+                        PaymentOrderStatus.NEEDS_REVIEW,
+                        PaymentOrderStatus.UNKNOWN,
+                    ]
+                ),
+            )
+            .first()
+            is not None
+        )
         if has_open_order:
             return True
         return False
@@ -336,8 +400,15 @@ class FreelanceContractService(ContractPort):
         term_items: list[tuple[Milestone, object]],
     ) -> None:
         """Assert that milestones already funded, guarded, or started cannot be omitted or modified."""
-        existing_milestones = db.query(Milestone).filter_by(contract_id=contract.id).order_by(Milestone.id.asc()).all()
-        terms_by_ms_id = {ms.id: term for ms, term in term_items if ms is not None and ms.id is not None}
+        existing_milestones = (
+            db.query(Milestone)
+            .filter_by(contract_id=contract.id)
+            .order_by(Milestone.id.asc())
+            .all()
+        )
+        terms_by_ms_id = {
+            ms.id: term for ms, term in term_items if ms is not None and ms.id is not None
+        }
         terms_by_seq = {ms.sequence_no: term for ms, term in term_items if ms is not None}
 
         for ms in existing_milestones:
@@ -348,13 +419,15 @@ class FreelanceContractService(ContractPort):
             if new_term is None:
                 new_term = terms_by_seq.get(ms.sequence_no)
             if new_term is None:
-                raise ConflictError("Cannot omit a funded, guarded, or started milestone", code="TERMS_IMMUTABLE")
+                raise ConflictError(
+                    "Cannot omit a funded, guarded, or started milestone", code="TERMS_IMMUTABLE"
+                )
 
             if ms.effective_terms_id is not None:
                 eff_term = db.get(ContractMilestoneTerm, ms.effective_terms_id)
                 if eff_term is not None:
                     eff_ver = db.get(ContractVersion, eff_term.contract_version_id)
-                    fee_changed = (eff_ver is not None and eff_ver.fee_rate_bp != fee_rate_bp)
+                    fee_changed = eff_ver is not None and eff_ver.fee_rate_bp != fee_rate_bp
                     if (
                         eff_term.title != new_term.title
                         or eff_term.description != getattr(new_term, "description", None)
@@ -380,7 +453,9 @@ class FreelanceContractService(ContractPort):
         """Create a new DRAFT version with milestone terms under lock."""
         # Lock in global order
         _project, contract, _budget, _version, _ = _lock_contract_hierarchy(
-            db, contract_id=contract_id, lock_milestones=True,
+            db,
+            contract_id=contract_id,
+            lock_milestones=True,
         )
         if not contract:
             raise NotFoundError("Contract not found", code="NOT_FOUND")
@@ -393,41 +468,94 @@ class FreelanceContractService(ContractPort):
         if ctx.actor_user_id not in (contract.client_user_id, student.user_id):
             raise NotFoundError("Contract not found", code="NOT_FOUND")
 
-        if contract.status in (ContractStatus.COMPLETED, ContractStatus.CANCELLED, ContractStatus.TERMINATED):
-            raise ConflictError("Cannot create version for closed contract", code="INVALID_STATE_TRANSITION")
+        if contract.status in (
+            ContractStatus.COMPLETED,
+            ContractStatus.CANCELLED,
+            ContractStatus.TERMINATED,
+        ):
+            raise ConflictError(
+                "Cannot create version for closed contract", code="INVALID_STATE_TRANSITION"
+            )
 
         # Validate total amount and fee rate
-        if payload.total_amount <= 0:
-            raise UnprocessableError("Total amount must be positive", code="VALIDATION_ERROR")
+        if payload.total_amount <= 2000:
+            raise UnprocessableError(
+                "Escrow amount must be greater than 2,000 VND",
+                code="VALIDATION_ERROR",
+            )
 
-        fee_rate_bp = payload.fee_rate_bp if payload.fee_rate_bp is not None else 500
+        from app.services.freelancer_policy_service import read_policy
+
+        policy, policy_revision = read_policy(db)
+        effective = (
+            db.get(ContractVersion, contract.effective_version_id)
+            if contract.effective_version_id
+            else None
+        )
+        fee_rate_bp = effective.fee_rate_bp if effective else policy.fee_rate_bp
+        if payload.fee_rate_bp is not None and payload.fee_rate_bp != fee_rate_bp:
+            raise ConflictError(
+                "Platform fee must match the applicable policy snapshot", code="TERMS_IMMUTABLE"
+            )
+        if (
+            _project
+            and _project.funding_policy == FundingPolicy.FULL
+            and payload.funding_policy != FundingPolicy.FULL
+        ):
+            raise ConflictError("Project requires FULL funding", code="TERMS_IMMUTABLE")
         if not (0 <= fee_rate_bp < 10000):
-            raise UnprocessableError("Fee rate bp must be between 0 and 9999", code="VALIDATION_ERROR")
+            raise UnprocessableError(
+                "Fee rate bp must be between 0 and 9999", code="VALIDATION_ERROR"
+            )
 
-        review_period_seconds = payload.review_period_seconds if payload.review_period_seconds is not None else 604800
-        max_revision_count = payload.max_revision_count if payload.max_revision_count is not None else 3
-        grace_period_seconds = payload.grace_period_seconds if payload.grace_period_seconds is not None else 259200
+        review_period_seconds = (
+            payload.review_period_seconds
+            if payload.review_period_seconds is not None
+            else policy.review_period_seconds
+        )
+        max_revision_count = (
+            payload.max_revision_count
+            if payload.max_revision_count is not None
+            else policy.max_revision_count
+        )
+        grace_period_seconds = (
+            payload.grace_period_seconds
+            if payload.grace_period_seconds is not None
+            else policy.grace_period_seconds
+        )
 
         if review_period_seconds <= 0 or max_revision_count < 0 or grace_period_seconds < 0:
-            raise UnprocessableError("Invalid review, revision, or grace period parameters", code="VALIDATION_ERROR")
+            raise UnprocessableError(
+                "Invalid review, revision, or grace period parameters", code="VALIDATION_ERROR"
+            )
 
         # Validate milestone terms
         included_terms = [t for t in payload.milestone_terms if t.included]
         if not included_terms:
-            raise UnprocessableError("At least one included milestone is required", code="VALIDATION_ERROR")
+            raise UnprocessableError(
+                "At least one included milestone is required", code="VALIDATION_ERROR"
+            )
 
         sum_included = sum(t.amount for t in included_terms)
         if sum_included != payload.total_amount:
-            raise UnprocessableError("Sum of included milestone amounts must equal total_amount", code="VALIDATION_ERROR")
+            raise UnprocessableError(
+                "Sum of included milestone amounts must equal total_amount", code="VALIDATION_ERROR"
+            )
 
         for t in payload.milestone_terms:
-            if t.amount <= 0:
-                raise UnprocessableError("Milestone amount must be positive", code="VALIDATION_ERROR")
+            if t.amount <= 2000:
+                raise UnprocessableError(
+                    "Milestone escrow amount must be greater than 2,000 VND",
+                    code="VALIDATION_ERROR",
+                )
 
         # Invariant checks on existing milestones
         existing_milestones = {
             m.sequence_no: m
-            for m in db.query(Milestone).filter_by(contract_id=contract.id).order_by(Milestone.id.asc()).all()
+            for m in db.query(Milestone)
+            .filter_by(contract_id=contract.id)
+            .order_by(Milestone.id.asc())
+            .all()
         }
 
         # Find or create Milestones for each term
@@ -444,6 +572,16 @@ class FreelanceContractService(ContractPort):
                 db.flush()
                 existing_milestones[seq_idx] = ms
 
+            if _project and _norm_utc(t.due_at) > _norm_utc(_project.deadline):
+                raise UnprocessableError(
+                    "Milestone deadline exceeds the project deadline", code="VALIDATION_ERROR"
+                )
+            if _norm_utc(t.due_at) <= _norm_utc(ctx.now_utc) and not self._is_milestone_locked(
+                db, ms
+            ):
+                raise UnprocessableError(
+                    "Unfunded milestone deadline must be in the future", code="VALIDATION_ERROR"
+                )
             milestone_term_mappings.append((ms, t))
 
         # Check immutable invariants on locked milestones
@@ -455,30 +593,58 @@ class FreelanceContractService(ContractPort):
         )
 
         # Compute next version number
-        max_ver = db.query(func.coalesce(func.max(ContractVersion.version_no), 0)).filter_by(
-            contract_id=contract.id
-        ).scalar() or 0
+        max_ver = max(
+            (
+                v.version_no
+                for v in _for_update(
+                    db.query(ContractVersion)
+                    .filter_by(contract_id=contract.id)
+                    .order_by(ContractVersion.id),
+                    db,
+                ).all()
+            ),
+            default=0,
+        )
         version_no = max_ver + 1
 
-        terms_json = payload.terms_json or {
-            "client_user_id": contract.client_user_id,
-            "freelancer_student_id": contract.freelancer_student_id,
-            "created_at": _norm_utc(ctx.now_utc).isoformat(),
-        }
+        from app.models import User
+
+        client_user = db.get(User, contract.client_user_id)
+        terms_json = dict(payload.terms_json or {})
+        terms_json.update(
+            {
+                "client_user_id": str(contract.client_user_id),
+                "freelancer_student_id": str(contract.freelancer_student_id),
+                "client_name": client_user.email if client_user else "",
+                "freelancer_name": student.full_name,
+                "policy_revision": policy_revision,
+                "cancellation_policy": terms_json.get(
+                    "cancellation_policy",
+                    {
+                        "allow_before_start": policy.allow_before_start_cancellation,
+                        "allow_overdue": policy.allow_overdue_cancellation,
+                    },
+                ),
+                "evidence_period_seconds": policy.evidence_period_seconds,
+                "created_at": _norm_utc(ctx.now_utc).isoformat(),
+            }
+        )
 
         # Build term data for hash
         terms_data_for_hash = []
         for ms, t in milestone_term_mappings:
-            terms_data_for_hash.append({
-                "sequence_no": ms.sequence_no,
-                "milestone_id": ms.id,
-                "title": t.title,
-                "description": t.description,
-                "amount": t.amount,
-                "acceptance_criteria": t.acceptance_criteria,
-                "due_at": _norm_utc(t.due_at),
-                "included": t.included,
-            })
+            terms_data_for_hash.append(
+                {
+                    "sequence_no": ms.sequence_no,
+                    "milestone_id": ms.id,
+                    "title": t.title,
+                    "description": t.description,
+                    "amount": t.amount,
+                    "acceptance_criteria": t.acceptance_criteria,
+                    "due_at": _norm_utc(t.due_at),
+                    "included": t.included,
+                }
+            )
 
         content_hash = compute_version_content_hash(
             contract_id=contract.id,
@@ -553,7 +719,9 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         project, contract, budget, version, _ = _lock_contract_hierarchy(
-            db, contract_id=version_raw.contract_id, version_id=version_raw.id,
+            db,
+            contract_id=version_raw.contract_id,
+            version_id=version_raw.id,
         )
         if not version or not contract or not project or not budget:
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
@@ -572,9 +740,37 @@ class FreelanceContractService(ContractPort):
         if version.status != ContractVersionStatus.DRAFT:
             raise ConflictError("Version is not draft", code="INVALID_STATE_TRANSITION")
 
+        if contract.status not in (
+            ContractStatus.DRAFT,
+            ContractStatus.PENDING_ACCEPTANCE,
+            ContractStatus.ACTIVE,
+        ):
+            raise ConflictError("Contract is closed", code="INVALID_STATE_TRANSITION")
+        if budget.status == ContractBudgetStatus.RELEASED:
+            raise ConflictError(
+                "Contract budget has been released", code="INVALID_STATE_TRANSITION"
+            )
+
+        from app.services.freelancer_accounts.eligibility_service import (
+            assert_student_eligible,
+            get_client_eligibility,
+        )
+
+        if not get_client_eligibility(
+            db, user_id=contract.client_user_id, now_utc=ctx.now_utc
+        ).can_submit:
+            raise ForbiddenError("Client is not eligible to sign", code="CLIENT_NOT_ELIGIBLE")
+        assert_student_eligible(db, student_id=contract.freelancer_student_id, now_utc=ctx.now_utc)
+
         # Re-check immutable terms invariants before offering version
-        version_terms = db.query(ContractMilestoneTerm).filter_by(contract_version_id=version.id).all()
-        term_items = [(db.get(Milestone, t.milestone_id), t) for t in version_terms if t.milestone_id is not None]
+        version_terms = (
+            db.query(ContractMilestoneTerm).filter_by(contract_version_id=version.id).all()
+        )
+        term_items = [
+            (db.get(Milestone, t.milestone_id), t)
+            for t in version_terms
+            if t.milestone_id is not None
+        ]
         self._assert_immutable_milestone_terms(
             db,
             contract=contract,
@@ -584,36 +780,69 @@ class FreelanceContractService(ContractPort):
 
         now = _norm_utc(ctx.now_utc)
 
+        if acceptance_deadline is None:
+            from datetime import timedelta
+
+            from app.services.freelancer_policy_service import read_policy
+
+            policy, _ = read_policy(db)
+            acceptance_deadline = now + timedelta(seconds=policy.offer_period_seconds)
         # Check existing OFFERED versions on this contract
-        active_offered = db.query(ContractVersion).filter(
-            ContractVersion.contract_id == contract.id,
-            ContractVersion.status == ContractVersionStatus.OFFERED,
-            ContractVersion.id != version.id,
-        ).all()
+        active_offered = (
+            db.query(ContractVersion)
+            .filter(
+                ContractVersion.contract_id == contract.id,
+                ContractVersion.status == ContractVersionStatus.OFFERED,
+                ContractVersion.id != version.id,
+            )
+            .all()
+        )
 
         for off in active_offered:
             if off.acceptance_deadline and now > off.acceptance_deadline:
                 off.status = ContractVersionStatus.EXPIRED
             else:
-                raise ConflictError("Another offered version is still active", code="CONTRACT_VERSION_CONFLICT")
+                raise ConflictError(
+                    "Another offered version is still active", code="CONTRACT_VERSION_CONFLICT"
+                )
 
         # Check and coordinate budget allocation
         if version.total_amount > budget.allocated_amount:
             if ctx.actor_user_id == contract.client_user_id:
-                other_allocated = db.query(func.coalesce(func.sum(ProjectContractBudget.allocated_amount), 0)).filter(
-                    ProjectContractBudget.project_id == project.id,
-                    ProjectContractBudget.contract_id != contract.id,
-                    ProjectContractBudget.status.in_([ContractBudgetStatus.RESERVED, ContractBudgetStatus.COMMITTED]),
-                ).scalar() or 0
+                other_allocated = sum(
+                    b.allocated_amount
+                    for b in _for_update(
+                        db.query(ProjectContractBudget)
+                        .filter(
+                            ProjectContractBudget.project_id == project.id,
+                            ProjectContractBudget.contract_id != contract.id,
+                            ProjectContractBudget.status.in_(
+                                [ContractBudgetStatus.RESERVED, ContractBudgetStatus.COMMITTED]
+                            ),
+                        )
+                        .order_by(ProjectContractBudget.id),
+                        db,
+                    ).all()
+                )
 
                 if other_allocated + version.total_amount > project.budget_amount:
-                    raise ConflictError("Version total amount exceeds project budget", code="PROJECT_BUDGET_EXCEEDED")
+                    raise ConflictError(
+                        "Version total amount exceeds project budget",
+                        code="PROJECT_BUDGET_EXCEEDED",
+                    )
                 budget.allocated_amount = version.total_amount
             else:
-                raise ConflictError("Proposed total amount exceeds contract allocated budget", code="PROJECT_BUDGET_EXCEEDED")
+                raise ConflictError(
+                    "Proposed total amount exceeds contract allocated budget",
+                    code="PROJECT_BUDGET_EXCEEDED",
+                )
 
         # Freeze deadline and mark OFFERED
         deadline = _norm_utc(acceptance_deadline) or (now + timedelta(days=7))
+        if deadline <= now:
+            raise ConflictError(
+                "Offer deadline must be in the future", code="CONTRACT_VERSION_CONFLICT"
+            )
         version.status = ContractVersionStatus.OFFERED
         version.offered_at = now
         version.acceptance_deadline = deadline
@@ -650,6 +879,17 @@ class FreelanceContractService(ContractPort):
                 request_id=ctx.request_id,
             )
         )
+        from app.services.freelancer_domain import notify
+
+        recipient_id = student.user_id if ctx.actor_user_id == contract.client_user_id else contract.client_user_id
+        notify(
+            db,
+            recipient_id,
+            "Có đề nghị điều khoản hợp đồng mới",
+            f'Đối tác đã gửi điều khoản cho dự án "{project.title}". Hãy mở hợp đồng để xem và phản hồi.',
+            ref_type="FREELANCE_CONTRACT",
+            ref_id=contract.id,
+        )
         db.flush()
 
         return version
@@ -668,7 +908,10 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         project, contract, budget, version, milestones = _lock_contract_hierarchy(
-            db, contract_id=version_raw.contract_id, version_id=version_raw.id, lock_milestones=True,
+            db,
+            contract_id=version_raw.contract_id,
+            version_id=version_raw.id,
+            lock_milestones=True,
         )
         if not version or not contract or not project or not budget:
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
@@ -682,11 +925,41 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         if version.status != ContractVersionStatus.OFFERED:
-            raise ConflictError("Version is not in OFFERED status", code="CONTRACT_VERSION_CONFLICT")
+            raise ConflictError(
+                "Version is not in OFFERED status", code="CONTRACT_VERSION_CONFLICT"
+            )
+
+        if contract.status not in (
+            ContractStatus.DRAFT,
+            ContractStatus.PENDING_ACCEPTANCE,
+            ContractStatus.ACTIVE,
+        ):
+            raise ConflictError("Contract is closed", code="INVALID_STATE_TRANSITION")
+        if budget.status == ContractBudgetStatus.RELEASED:
+            raise ConflictError(
+                "Contract budget has been released", code="INVALID_STATE_TRANSITION"
+            )
+
+        from app.services.freelancer_accounts.eligibility_service import (
+            assert_student_eligible,
+            get_client_eligibility,
+        )
+
+        if not get_client_eligibility(
+            db, user_id=contract.client_user_id, now_utc=ctx.now_utc
+        ).can_submit:
+            raise ForbiddenError("Client is not eligible to sign", code="CLIENT_NOT_ELIGIBLE")
+        assert_student_eligible(db, student_id=contract.freelancer_student_id, now_utc=ctx.now_utc)
 
         # Re-check immutable terms invariants before accepting version
-        version_terms = db.query(ContractMilestoneTerm).filter_by(contract_version_id=version.id).all()
-        term_items = [(db.get(Milestone, t.milestone_id), t) for t in version_terms if t.milestone_id is not None]
+        version_terms = (
+            db.query(ContractMilestoneTerm).filter_by(contract_version_id=version.id).all()
+        )
+        term_items = [
+            (db.get(Milestone, t.milestone_id), t)
+            for t in version_terms
+            if t.milestone_id is not None
+        ]
         self._assert_immutable_milestone_terms(
             db,
             contract=contract,
@@ -695,15 +968,21 @@ class FreelanceContractService(ContractPort):
         )
 
         now = _norm_utc(ctx.now_utc)
-        if version.acceptance_deadline and now > version.acceptance_deadline:
+        if version.acceptance_deadline and now >= _norm_utc(version.acceptance_deadline):
             self.expire_version_in_tx(db, ctx=ctx, version_id=version.id)
-            raise ConflictError("Contract version offer has expired", code="CONTRACT_VERSION_CONFLICT")
+            raise ConflictError(
+                "Contract version offer has expired", code="CONTRACT_VERSION_CONFLICT"
+            )
 
         # Prevent duplicate accept from same party
         if ctx.actor_user_id == contract.client_user_id and version.client_accepted_at is not None:
-            raise ConflictError("Party has already accepted this version", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Party has already accepted this version", code="INVALID_STATE_TRANSITION"
+            )
         if ctx.actor_user_id == student.user_id and version.freelancer_accepted_at is not None:
-            raise ConflictError("Party has already accepted this version", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Party has already accepted this version", code="INVALID_STATE_TRANSITION"
+            )
 
         if version.content_hash != content_hash:
             raise ConflictError("Content hash mismatch", code="CONTRACT_VERSION_CONFLICT")
@@ -752,10 +1031,14 @@ class FreelanceContractService(ContractPort):
                         ms.status = MilestoneStatus.CANCELLED
 
             # Cancel pending expiration job
-            job = db.query(ScheduledJob).filter(
-                ScheduledJob.job_key == f"contract_version.expire:{version.id}",
-                ScheduledJob.status == ScheduledJobStatus.PENDING,
-            ).first()
+            job = (
+                db.query(ScheduledJob)
+                .filter(
+                    ScheduledJob.job_key == f"contract_version.expire:{version.id}",
+                    ScheduledJob.status == ScheduledJobStatus.PENDING,
+                )
+                .first()
+            )
             if job:
                 job.status = ScheduledJobStatus.CANCELLED
 
@@ -769,6 +1052,35 @@ class FreelanceContractService(ContractPort):
                 request_id=ctx.request_id,
             )
         )
+        from app.services.freelancer_domain import notify
+
+        if version.client_accepted_at and version.freelancer_accepted_at:
+            notify(
+                db,
+                contract.client_user_id,
+                "Hợp đồng đã được chấp nhận — cần ký quỹ",
+                f'Sinh viên đã chấp nhận hợp đồng dự án "{project.title}". Hãy ký quỹ để sinh viên có thể bắt đầu làm việc.',
+                ref_type="FREELANCE_CONTRACT",
+                ref_id=contract.id,
+            )
+            notify(
+                db,
+                student.user_id,
+                "Hợp đồng Freelancer đã có hiệu lực",
+                f'Hợp đồng dự án "{project.title}" đã được hai bên chấp nhận. Công việc bắt đầu sau khi người thuê ký quỹ.',
+                ref_type="FREELANCE_CONTRACT",
+                ref_id=contract.id,
+            )
+        else:
+            recipient_id = student.user_id if ctx.actor_user_id == contract.client_user_id else contract.client_user_id
+            notify(
+                db,
+                recipient_id,
+                "Đối tác đã chấp nhận hợp đồng",
+                f'Đối tác đã chấp nhận điều khoản dự án "{project.title}". Hãy mở hợp đồng để phản hồi.',
+                ref_type="FREELANCE_CONTRACT",
+                ref_id=contract.id,
+            )
         db.flush()
 
         return version
@@ -787,7 +1099,9 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         _project, contract, _budget, version, _ = _lock_contract_hierarchy(
-            db, contract_id=version_raw.contract_id, version_id=version_raw.id,
+            db,
+            contract_id=version_raw.contract_id,
+            version_id=version_raw.id,
         )
         if not version or not contract:
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
@@ -804,31 +1118,46 @@ class FreelanceContractService(ContractPort):
             raise ForbiddenError("Creator cannot decline own offer, use withdraw", code="FORBIDDEN")
 
         if version.status != ContractVersionStatus.OFFERED:
-            raise ConflictError("Version is not in OFFERED status", code="CONTRACT_VERSION_CONFLICT")
+            raise ConflictError(
+                "Version is not in OFFERED status", code="CONTRACT_VERSION_CONFLICT"
+            )
 
         now = _norm_utc(ctx.now_utc)
-        if version.acceptance_deadline and now > version.acceptance_deadline:
+        if version.acceptance_deadline and now >= _norm_utc(version.acceptance_deadline):
             self.expire_version_in_tx(db, ctx=ctx, version_id=version.id)
-            raise ConflictError("Contract version offer has expired", code="CONTRACT_VERSION_CONFLICT")
+            raise ConflictError(
+                "Contract version offer has expired", code="CONTRACT_VERSION_CONFLICT"
+            )
 
         version.status = ContractVersionStatus.DECLINED
         version.response_note = response_note
 
         # Revert contract status if pending first acceptance
-        if contract.status == ContractStatus.PENDING_ACCEPTANCE and not contract.effective_version_id:
-            remaining_offered = db.query(ContractVersion).filter(
-                ContractVersion.contract_id == contract.id,
-                ContractVersion.status == ContractVersionStatus.OFFERED,
-                ContractVersion.id != version.id,
-            ).first()
+        if (
+            contract.status == ContractStatus.PENDING_ACCEPTANCE
+            and not contract.effective_version_id
+        ):
+            remaining_offered = (
+                db.query(ContractVersion)
+                .filter(
+                    ContractVersion.contract_id == contract.id,
+                    ContractVersion.status == ContractVersionStatus.OFFERED,
+                    ContractVersion.id != version.id,
+                )
+                .first()
+            )
             if not remaining_offered:
                 contract.status = ContractStatus.DRAFT
 
         # Cancel pending expire job
-        job = db.query(ScheduledJob).filter(
-            ScheduledJob.job_key == f"contract_version.expire:{version.id}",
-            ScheduledJob.status == ScheduledJobStatus.PENDING,
-        ).first()
+        job = (
+            db.query(ScheduledJob)
+            .filter(
+                ScheduledJob.job_key == f"contract_version.expire:{version.id}",
+                ScheduledJob.status == ScheduledJobStatus.PENDING,
+            )
+            .first()
+        )
         if job:
             job.status = ScheduledJobStatus.CANCELLED
 
@@ -859,7 +1188,9 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         _project, contract, _budget, version, _ = _lock_contract_hierarchy(
-            db, contract_id=version_raw.contract_id, version_id=version_raw.id,
+            db,
+            contract_id=version_raw.contract_id,
+            version_id=version_raw.id,
         )
         if not version or not contract:
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
@@ -876,27 +1207,40 @@ class FreelanceContractService(ContractPort):
             raise ForbiddenError("Only creator can withdraw this version", code="FORBIDDEN")
 
         if version.status == ContractVersionStatus.EFFECTIVE:
-            raise ConflictError("Cannot withdraw effective version", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Cannot withdraw effective version", code="INVALID_STATE_TRANSITION"
+            )
 
         if version.status not in (ContractVersionStatus.DRAFT, ContractVersionStatus.OFFERED):
             raise ConflictError("Version cannot be withdrawn", code="INVALID_STATE_TRANSITION")
 
         version.status = ContractVersionStatus.WITHDRAWN
 
-        if contract.status == ContractStatus.PENDING_ACCEPTANCE and not contract.effective_version_id:
-            remaining_offered = db.query(ContractVersion).filter(
-                ContractVersion.contract_id == contract.id,
-                ContractVersion.status == ContractVersionStatus.OFFERED,
-                ContractVersion.id != version.id,
-            ).first()
+        if (
+            contract.status == ContractStatus.PENDING_ACCEPTANCE
+            and not contract.effective_version_id
+        ):
+            remaining_offered = (
+                db.query(ContractVersion)
+                .filter(
+                    ContractVersion.contract_id == contract.id,
+                    ContractVersion.status == ContractVersionStatus.OFFERED,
+                    ContractVersion.id != version.id,
+                )
+                .first()
+            )
             if not remaining_offered:
                 contract.status = ContractStatus.DRAFT
 
         # Cancel pending expire job
-        job = db.query(ScheduledJob).filter(
-            ScheduledJob.job_key == f"contract_version.expire:{version.id}",
-            ScheduledJob.status == ScheduledJobStatus.PENDING,
-        ).first()
+        job = (
+            db.query(ScheduledJob)
+            .filter(
+                ScheduledJob.job_key == f"contract_version.expire:{version.id}",
+                ScheduledJob.status == ScheduledJobStatus.PENDING,
+            )
+            .first()
+        )
         if job:
             job.status = ScheduledJobStatus.CANCELLED
 
@@ -927,30 +1271,50 @@ class FreelanceContractService(ContractPort):
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         _project, contract, _budget, version, _ = _lock_contract_hierarchy(
-            db, contract_id=version_raw.contract_id, version_id=version_raw.id,
+            db,
+            contract_id=version_raw.contract_id,
+            version_id=version_raw.id,
         )
         if not version or not contract:
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
         if version.status == ContractVersionStatus.EXPIRED:
             return version
-
+        if (
+            version.status != ContractVersionStatus.OFFERED
+            or not version.acceptance_deadline
+            or _norm_utc(ctx.now_utc) < _norm_utc(version.acceptance_deadline)
+        ):
+            raise ConflictError(
+                "Only an expired offer may be expired", code="INVALID_STATE_TRANSITION"
+            )
         version.status = ContractVersionStatus.EXPIRED
 
-        if contract.status == ContractStatus.PENDING_ACCEPTANCE and not contract.effective_version_id:
-            remaining_offered = db.query(ContractVersion).filter(
-                ContractVersion.contract_id == contract.id,
-                ContractVersion.status == ContractVersionStatus.OFFERED,
-                ContractVersion.id != version.id,
-            ).first()
+        if (
+            contract.status == ContractStatus.PENDING_ACCEPTANCE
+            and not contract.effective_version_id
+        ):
+            remaining_offered = (
+                db.query(ContractVersion)
+                .filter(
+                    ContractVersion.contract_id == contract.id,
+                    ContractVersion.status == ContractVersionStatus.OFFERED,
+                    ContractVersion.id != version.id,
+                )
+                .first()
+            )
             if not remaining_offered:
                 contract.status = ContractStatus.DRAFT
 
         # Mark job completed if any
-        job = db.query(ScheduledJob).filter(
-            ScheduledJob.job_key == f"contract_version.expire:{version.id}",
-            ScheduledJob.status == ScheduledJobStatus.PENDING,
-        ).first()
+        job = (
+            db.query(ScheduledJob)
+            .filter(
+                ScheduledJob.job_key == f"contract_version.expire:{version.id}",
+                ScheduledJob.status == ScheduledJobStatus.PENDING,
+            )
+            .first()
+        )
         if job:
             job.status = ScheduledJobStatus.SUCCEEDED
 
@@ -1001,12 +1365,34 @@ class FreelanceContractService(ContractPort):
         is_admin: bool = False,
     ) -> list[ContractVersion]:
         """List versions for a contract with zero-leak check."""
-        self.get_contract(db, contract_id=contract_id, actor_user_id=actor_user_id, is_admin=is_admin)
+        self.get_contract(
+            db, contract_id=contract_id, actor_user_id=actor_user_id, is_admin=is_admin
+        )
         return (
             db.query(ContractVersion)
             .filter_by(contract_id=contract_id)
             .order_by(ContractVersion.version_no.desc())
             .all()
+        )
+
+    def get_contract_versions_page(
+        self, db, *, contract_id, actor_user_id, is_admin=False, page=1, size=20
+    ):
+        from sqlalchemy import select
+
+        from app.services.freelancer_domain import page as paginate
+
+        self.get_contract(
+            db, contract_id=contract_id, actor_user_id=actor_user_id, is_admin=is_admin
+        )
+        return paginate(
+            db,
+            select(ContractVersion)
+            .where(ContractVersion.contract_id == contract_id)
+            .order_by(ContractVersion.version_no.desc()),
+            page,
+            size,
+            project=lambda x: x,
         )
 
     def get_contract_version(
@@ -1022,7 +1408,9 @@ class FreelanceContractService(ContractPort):
         if not version:
             raise NotFoundError("Contract version not found", code="NOT_FOUND")
 
-        self.get_contract(db, contract_id=version.contract_id, actor_user_id=actor_user_id, is_admin=is_admin)
+        self.get_contract(
+            db, contract_id=version.contract_id, actor_user_id=actor_user_id, is_admin=is_admin
+        )
         return version
 
     # -------------------------------------------------------------------------
@@ -1037,7 +1425,12 @@ class FreelanceContractService(ContractPort):
         contract_id: int,
         payload: ContractVersionCreate,
     ) -> ContractVersion:
-        return run_command(db, lambda: self.create_version_in_tx(db, ctx=ctx, contract_id=contract_id, payload=payload))
+        return run_command(
+            db,
+            lambda: self.create_version_in_tx(
+                db, ctx=ctx, contract_id=contract_id, payload=payload
+            ),
+        )
 
     def offer_version(
         self,
@@ -1047,7 +1440,12 @@ class FreelanceContractService(ContractPort):
         version_id: int,
         acceptance_deadline: datetime | None = None,
     ) -> ContractVersion:
-        return run_command(db, lambda: self.offer_version_in_tx(db, ctx=ctx, version_id=version_id, acceptance_deadline=acceptance_deadline))
+        return run_command(
+            db,
+            lambda: self.offer_version_in_tx(
+                db, ctx=ctx, version_id=version_id, acceptance_deadline=acceptance_deadline
+            ),
+        )
 
     def accept_version(
         self,
@@ -1067,7 +1465,9 @@ class FreelanceContractService(ContractPort):
         except ConflictError as exc:
             if exc.message == "Contract version offer has expired":
                 try:
-                    run_command(db, lambda: self.expire_version_in_tx(db, ctx=ctx, version_id=version_id))
+                    run_command(
+                        db, lambda: self.expire_version_in_tx(db, ctx=ctx, version_id=version_id)
+                    )
                 except Exception:
                     pass
             raise exc
@@ -1090,7 +1490,9 @@ class FreelanceContractService(ContractPort):
         except ConflictError as exc:
             if exc.message == "Contract version offer has expired":
                 try:
-                    run_command(db, lambda: self.expire_version_in_tx(db, ctx=ctx, version_id=version_id))
+                    run_command(
+                        db, lambda: self.expire_version_in_tx(db, ctx=ctx, version_id=version_id)
+                    )
                 except Exception:
                     pass
             raise exc
@@ -1102,7 +1504,9 @@ class FreelanceContractService(ContractPort):
         ctx: CommandContext,
         version_id: int,
     ) -> ContractVersion:
-        return run_command(db, lambda: self.withdraw_version_in_tx(db, ctx=ctx, version_id=version_id))
+        return run_command(
+            db, lambda: self.withdraw_version_in_tx(db, ctx=ctx, version_id=version_id)
+        )
 
     def expire_version(
         self,
@@ -1111,4 +1515,6 @@ class FreelanceContractService(ContractPort):
         ctx: CommandContext,
         version_id: int,
     ) -> ContractVersion:
-        return run_command(db, lambda: self.expire_version_in_tx(db, ctx=ctx, version_id=version_id))
+        return run_command(
+            db, lambda: self.expire_version_in_tx(db, ctx=ctx, version_id=version_id)
+        )

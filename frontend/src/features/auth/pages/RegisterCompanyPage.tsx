@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { authApi } from '../api/auth.api'
 import { toApiError } from '@/lib/api-error'
+import { RegistrationConsent, TERMS_VERSION, RegisterTermsModal } from '@/features/freelancer/RegisterTermsModal'
 
 const schema = z.object({
   email: z.string().trim().email('Vui lòng nhập địa chỉ email hợp lệ.'),
@@ -39,6 +40,8 @@ const schema = z.object({
 type FormFields = z.infer<typeof schema>
 
 export default function RegisterCompanyPage() {
+  const [privacyOpen, setPrivacyOpen] = useState(false)
+  const [policyTab, setPolicyTab] = useState<'terms' | 'privacy'>('privacy')
   const [done, setDone] = useState(false)
   const [registeredEmail, setRegisteredEmail] = useState('')
   const [registeredCompanyName, setRegisteredCompanyName] = useState('')
@@ -48,6 +51,8 @@ export default function RegisterCompanyPage() {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormFields>({
     resolver: zodResolver(schema),
@@ -60,7 +65,7 @@ export default function RegisterCompanyPage() {
       address: '',
       contact_name: '',
       contact_phone: '',
-      terms: true,
+      terms: false,
     },
   })
 
@@ -68,6 +73,7 @@ export default function RegisterCompanyPage() {
     setError('')
     try {
       await authApi.registerCompany({
+        terms_acceptance: { accepted: values.terms, version: TERMS_VERSION },
         email: values.email,
         password: values.password,
         company_name: values.company_name,
@@ -152,10 +158,6 @@ export default function RegisterCompanyPage() {
                   <span className="text-gray-500">Email quản trị:</span>
                   <span className="font-semibold text-[#131B2E]">{registeredEmail}</span>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-200">
-                  <span className="text-gray-500">Mã quy trình:</span>
-                  <span className="font-mono font-bold text-[#006A63]">REG-ENT-2025</span>
-                </div>
                 <div className="flex justify-between items-center py-1">
                   <span className="text-gray-500">Thời gian duyệt dự kiến:</span>
                   <span className="font-semibold text-amber-700">24 - 48 giờ làm việc</span>
@@ -176,12 +178,6 @@ export default function RegisterCompanyPage() {
                 >
                   Quay về trang Đăng nhập
                 </Link>
-                <a
-                  href="mailto:mou.partner@edu.vn"
-                  className="w-full sm:w-auto px-6 py-3 rounded-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-medium text-sm transition-all"
-                >
-                  Liên hệ Ban Hợp tác MOU
-                </a>
               </div>
             </div>
           </div>
@@ -205,11 +201,6 @@ export default function RegisterCompanyPage() {
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2 text-xs text-[#444653] bg-white px-3.5 py-2 rounded-xl border border-[#E2E8F0] shadow-2xs self-start md:self-auto">
-                <Building className="w-4 h-4 text-[#006A63]" />
-                <span>Mã quy trình:</span>
-                <span className="font-mono font-bold text-[#131B2E]">REG-ENT-2025</span>
-              </div>
             </div>
 
             {/* Error Banner nếu API trả lỗi */}
@@ -469,16 +460,7 @@ export default function RegisterCompanyPage() {
 
                   {/* ĐIỀU KHOẢN VÀ CAM KẾT */}
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#444653] space-y-2">
-                    <label className="flex items-start space-x-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 w-4 h-4 rounded text-[#006A63] focus:ring-[#006A63] border-slate-300"
-                        {...register('terms')}
-                      />
-                      <span className="leading-relaxed">
-                        Tôi cam kết thông tin Mã số thuế và Pháp nhân đại diện là hoàn toàn chính xác. Doanh nghiệp tuân thủ đúng quy định tiếp nhận thực tập sinh và bảo mật dữ liệu sinh viên của Nhà trường.
-                      </span>
-                    </label>
+                    <RegistrationConsent checked={watch('terms')} onChange={value => setValue('terms', value, { shouldValidate: true })} />
                     {errors.terms && <p className="text-red-600 m-0">{errors.terms.message}</p>}
                   </div>
 
@@ -493,7 +475,7 @@ export default function RegisterCompanyPage() {
 
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !watch('terms')}
                       className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#006A63] hover:bg-[#00544E] disabled:opacity-50 text-white font-medium text-sm transition-all duration-150 shadow-md hover:shadow-lg flex items-center justify-center space-x-2.5 border-0 cursor-pointer"
                     >
                       <span>{isSubmitting ? 'Đang gửi hồ sơ…' : 'Gửi hồ sơ đăng ký'}</span>
@@ -564,8 +546,8 @@ export default function RegisterCompanyPage() {
                           3
                         </div>
                         <div>
-                          <span className="font-semibold text-slate-500">Bước 3: Kích hoạt &amp; Ký MOU trực tuyến</span>
-                          <p className="text-slate-400 text-[11px] mt-0.5 mb-0">Gửi link kích hoạt qua email, mở quyền đăng tin tuyển dụng.</p>
+                          <span className="font-semibold text-slate-500">Bước 3: Ký MOU để trở thành đối tác (tùy chọn)</span>
+                          <p className="text-slate-500 text-[11px] mt-0.5 mb-0">Dành cho doanh nghiệp muốn trở thành đối tác của Nhà trường. Không bắt buộc ký MOU để tuyển dụng; quyền đăng tin được mở sau khi hồ sơ doanh nghiệp và quyền đại diện được xác minh.</p>
                         </div>
                       </li>
                     </ol>
@@ -576,10 +558,6 @@ export default function RegisterCompanyPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500">Thời gian phản hồi:</span>
                       <span className="font-semibold text-[#00288E]">Trong vòng 24 - 48 giờ làm việc</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Kênh giải đáp:</span>
-                      <span className="font-medium text-slate-700">mou.partner@edu.vn</span>
                     </div>
                   </div>
                 </div>
@@ -597,14 +575,15 @@ export default function RegisterCompanyPage() {
             <span>© 2025. Cổng kết nối Đào tạo &amp; Tuyển dụng Đại học 3 Bên.</span>
           </div>
           <div className="flex items-center gap-6">
-            <Link to="/login" className="hover:text-[#00288E] transition-colors">
+            <button type="button" onClick={() => { setPolicyTab('privacy'); setPrivacyOpen(true) }} className="hover:text-[#00288E] transition-colors">
               Chính sách bảo mật
-            </Link>
+            </button>
             <span className="text-gray-300">•</span>
             <span>Hỗ trợ kỹ thuật: support@edu.vn</span>
           </div>
         </div>
       </footer>
+      <RegisterTermsModal open={privacyOpen} tab={policyTab} onTab={setPolicyTab} onClose={() => setPrivacyOpen(false)} onAccept={() => { setValue('terms', true, { shouldValidate: true }); setPrivacyOpen(false) }} />
     </div>
   )
 }

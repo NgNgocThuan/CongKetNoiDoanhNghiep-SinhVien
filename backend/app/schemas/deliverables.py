@@ -16,6 +16,9 @@ class DeliverableFileRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     file_id: EntityId
+    original_name: str
+    content_type: str
+    size_bytes: int
     created_at: datetime
 
 

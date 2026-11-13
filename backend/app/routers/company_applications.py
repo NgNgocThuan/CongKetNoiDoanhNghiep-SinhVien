@@ -55,6 +55,7 @@ def get_application(application_id: int, db: DbSession, company: CurrentCompany)
     return company_application_service.get_application(db, company, application_id)
 
 
+@router.patch("/{application_id}/status", response_model=ApplicationRead)
 @router.put(
     "/{application_id}/status",
     response_model=ApplicationRead,
@@ -68,7 +69,9 @@ def change_status(
     background_tasks: BackgroundTasks,
 ):
     return company_application_service.log_status_change(
-        db, background_tasks, company, application_id, data.status, data.note
+        db, background_tasks, company, application_id, data.status, data.note,
+        interview_time=data.interview_time, interview_location=data.interview_location,
+        interview_notes=data.interview_notes
     )
 
 

@@ -1,4 +1,5 @@
 """Freelance closure service: ClosurePort implementation for contracts and projects (Ticket C6)."""
+
 from datetime import datetime, timezone
 
 from sqlalchemy import func
@@ -55,7 +56,7 @@ def _norm_utc(dt: datetime | None) -> datetime | None:
 def _for_update(query, db: Session):
     bind = db.get_bind()
     if bind is not None and bind.dialect.name != "sqlite":
-        return query.with_for_update()
+        return query.populate_existing().with_for_update()
     return query
 
 
@@ -79,8 +80,12 @@ class FreelanceClosureService(ClosurePort):
             return
 
         # Lock global hierarchy: project -> contract -> milestones (id asc)
-        project = _for_update(db.query(FreelanceProject).filter_by(id=contract_raw.project_id), db).first()
-        contract = _for_update(db.query(FreelanceContract).filter_by(id=contract_raw.id), db).first()
+        project = _for_update(
+            db.query(FreelanceProject).filter_by(id=contract_raw.project_id), db
+        ).first()
+        contract = _for_update(
+            db.query(FreelanceContract).filter_by(id=contract_raw.id), db
+        ).first()
         milestones = _for_update(
             db.query(Milestone).filter_by(contract_id=contract.id).order_by(Milestone.id.asc()),
             db,
@@ -89,41 +94,82 @@ class FreelanceClosureService(ClosurePort):
 
         if m_ids:
             # Active disputes
-            if db.query(ActiveMilestoneDispute).filter(ActiveMilestoneDispute.milestone_id.in_(m_ids)).first():
+            if (
+                db.query(ActiveMilestoneDispute)
+                .filter(ActiveMilestoneDispute.milestone_id.in_(m_ids))
+                .first()
+            ):
                 return
             # Active holds
-            if db.query(MilestoneHold).filter(MilestoneHold.milestone_id.in_(m_ids), MilestoneHold.released_at.is_(None)).first():
+            if (
+                db.query(MilestoneHold)
+                .filter(MilestoneHold.milestone_id.in_(m_ids), MilestoneHold.released_at.is_(None))
+                .first()
+            ):
                 return
             # Pending settlements
-            if db.query(Settlement).filter(
-                Settlement.milestone_id.in_(m_ids),
-                Settlement.status.in_([SettlementStatus.PREPARED, SettlementStatus.PROCESSING, SettlementStatus.PARTIALLY_SUCCEEDED]),
-            ).first():
+            if (
+                db.query(Settlement)
+                .filter(
+                    Settlement.milestone_id.in_(m_ids),
+                    Settlement.status.in_(
+                        [
+                            SettlementStatus.PREPARED,
+                            SettlementStatus.PROCESSING,
+                            SettlementStatus.PARTIALLY_SUCCEEDED,
+                        ]
+                    ),
+                )
+                .first()
+            ):
                 return
             # Pending transfers
-            if db.query(MoneyTransfer).join(Settlement, MoneyTransfer.settlement_id == Settlement.id).filter(
-                Settlement.milestone_id.in_(m_ids),
-                MoneyTransfer.status.in_([TransferStatus.READY, TransferStatus.PROCESSING, TransferStatus.UNKNOWN]),
-            ).first():
+            if (
+                db.query(MoneyTransfer)
+                .join(Settlement, MoneyTransfer.settlement_id == Settlement.id)
+                .filter(
+                    Settlement.milestone_id.in_(m_ids),
+                    MoneyTransfer.status.in_(
+                        [TransferStatus.READY, TransferStatus.PROCESSING, TransferStatus.UNKNOWN]
+                    ),
+                )
+                .first()
+            ):
                 return
             # Open payment orders
-            if db.query(PaymentOrder).filter(
-                PaymentOrder.milestone_id.in_(m_ids),
-                PaymentOrder.status.in_([
-                    PaymentOrderStatus.CREATING,
-                    PaymentOrderStatus.PENDING,
-                    PaymentOrderStatus.PROCESSING,
-                    PaymentOrderStatus.NEEDS_REVIEW,
-                    PaymentOrderStatus.UNKNOWN,
-                ]),
-            ).first():
+            if (
+                db.query(PaymentOrder)
+                .filter(
+                    PaymentOrder.milestone_id.in_(m_ids),
+                    PaymentOrder.status.in_(
+                        [
+                            PaymentOrderStatus.CREATING,
+                            PaymentOrderStatus.PENDING,
+                            PaymentOrderStatus.PROCESSING,
+                            PaymentOrderStatus.NEEDS_REVIEW,
+                            PaymentOrderStatus.UNKNOWN,
+                        ]
+                    ),
+                )
+                .first()
+            ):
                 return
             # Open payment review cases
-            if db.query(PaymentReviewCase).filter(
-                PaymentReviewCase.status.in_([PaymentReviewStatus.OPEN, PaymentReviewStatus.UNDER_REVIEW]),
-            ).join(PaymentTransaction, PaymentReviewCase.payment_transaction_id == PaymentTransaction.id).join(
-                PaymentOrder, PaymentTransaction.payment_order_id == PaymentOrder.id
-            ).filter(PaymentOrder.milestone_id.in_(m_ids)).first():
+            if (
+                db.query(PaymentReviewCase)
+                .filter(
+                    PaymentReviewCase.status.in_(
+                        [PaymentReviewStatus.OPEN, PaymentReviewStatus.UNDER_REVIEW]
+                    ),
+                )
+                .join(
+                    PaymentTransaction,
+                    PaymentReviewCase.payment_transaction_id == PaymentTransaction.id,
+                )
+                .join(PaymentOrder, PaymentTransaction.payment_order_id == PaymentOrder.id)
+                .filter(PaymentOrder.milestone_id.in_(m_ids))
+                .first()
+            ):
                 return
 
         now = _norm_utc(ctx.now_utc)
@@ -132,28 +178,41 @@ class FreelanceClosureService(ClosurePort):
         if contract.status in (ContractStatus.DRAFT, ContractStatus.PENDING_ACCEPTANCE):
             # Verify no funded guards or escrow
             if m_ids:
-                has_guards = db.query(MilestoneFundingGuard).filter(MilestoneFundingGuard.milestone_id.in_(m_ids)).first()
+                has_guards = (
+                    db.query(MilestoneFundingGuard)
+                    .filter(MilestoneFundingGuard.milestone_id.in_(m_ids))
+                    .first()
+                )
                 if has_guards:
                     return
-                for esc in db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(m_ids)).all():
-                    if (esc.funded_amount - esc.released_gross - esc.refunded_amount > 0) or esc.reserved_amount > 0:
+                for esc in (
+                    db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(m_ids)).all()
+                ):
+                    if (
+                        esc.funded_amount - esc.released_gross - esc.refunded_amount > 0
+                    ) or esc.reserved_amount > 0:
                         return
 
             # Check whether pre-activation contract is eligible for cancellation:
-            # Condition 1: Project recruitment is closed or project cancelled/closed,
+            # Condition 1: The project itself is cancelled/closed,
             # AND no OFFERED version currently valid (deadline is None or deadline >= now)
-            has_active_offered = db.query(ContractVersion).filter(
-                ContractVersion.contract_id == contract.id,
-                ContractVersion.status == ContractVersionStatus.OFFERED,
-                (ContractVersion.acceptance_deadline.is_(None) | (ContractVersion.acceptance_deadline >= now)),
-            ).first() is not None
+            has_active_offered = (
+                db.query(ContractVersion)
+                .filter(
+                    ContractVersion.contract_id == contract.id,
+                    ContractVersion.status == ContractVersionStatus.OFFERED,
+                    (
+                        ContractVersion.acceptance_deadline.is_(None)
+                        | (ContractVersion.acceptance_deadline >= now)
+                    ),
+                )
+                .first()
+                is not None
+            )
 
             project_closed = False
             if project:
-                project_closed = (
-                    project.recruitment_status == RecruitmentStatus.CLOSED
-                    or project.status in (ProjectStatus.CANCELLED, ProjectStatus.CLOSED)
-                )
+                project_closed = project.status in (ProjectStatus.CANCELLED, ProjectStatus.CLOSED)
 
             eligible_by_project = project_closed and not has_active_offered
 
@@ -162,14 +221,19 @@ class FreelanceClosureService(ClosurePort):
             versions = db.query(ContractVersion).filter_by(contract_id=contract.id).all()
             has_versions = len(versions) > 0
             all_versions_failed = has_versions and all(
-                v.status in (
+                v.status
+                in (
                     ContractVersionStatus.DECLINED,
                     ContractVersionStatus.WITHDRAWN,
                     ContractVersionStatus.EXPIRED,
                 )
                 for v in versions
             )
-            all_milestones_cancelled = all(m.status == MilestoneStatus.CANCELLED for m in milestones) if milestones else True
+            all_milestones_cancelled = (
+                all(m.status == MilestoneStatus.CANCELLED for m in milestones)
+                if milestones
+                else True
+            )
             eligible_by_versions_and_milestones = all_versions_failed and all_milestones_cancelled
 
             if not (eligible_by_project or eligible_by_versions_and_milestones):
@@ -203,11 +267,15 @@ class FreelanceClosureService(ClosurePort):
             if not contract.effective_version_id:
                 return
 
-            included_terms = db.query(ContractMilestoneTerm).filter(
-                ContractMilestoneTerm.contract_id == contract.id,
-                ContractMilestoneTerm.contract_version_id == contract.effective_version_id,
-                ContractMilestoneTerm.included.is_(True),
-            ).all()
+            included_terms = (
+                db.query(ContractMilestoneTerm)
+                .filter(
+                    ContractMilestoneTerm.contract_id == contract.id,
+                    ContractMilestoneTerm.contract_version_id == contract.effective_version_id,
+                    ContractMilestoneTerm.included.is_(True),
+                )
+                .all()
+            )
 
             if not included_terms:
                 return
@@ -230,8 +298,12 @@ class FreelanceClosureService(ClosurePort):
                     return
 
             # Verify no residual escrow held
-            for esc in db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(included_m_ids)).all():
-                if (esc.funded_amount - esc.released_gross - esc.refunded_amount > 0) or esc.reserved_amount > 0:
+            for esc in (
+                db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(included_m_ids)).all()
+            ):
+                if (
+                    esc.funded_amount - esc.released_gross - esc.refunded_amount > 0
+                ) or esc.reserved_amount > 0:
                     return
 
             all_paid_out = all(m.status == MilestoneStatus.PAID_OUT for m in active_ms)
@@ -278,16 +350,26 @@ class FreelanceClosureService(ClosurePort):
         has_open = False
 
         # Open contracts check
-        open_contracts_count = db.query(FreelanceContract).filter(
-            FreelanceContract.project_id == project_id,
-            FreelanceContract.status.in_([ContractStatus.DRAFT, ContractStatus.PENDING_ACCEPTANCE, ContractStatus.ACTIVE]),
-        ).count()
+        open_contracts_count = (
+            db.query(FreelanceContract)
+            .filter(
+                FreelanceContract.project_id == project_id,
+                FreelanceContract.status.in_(
+                    [ContractStatus.DRAFT, ContractStatus.PENDING_ACCEPTANCE, ContractStatus.ACTIVE]
+                ),
+            )
+            .count()
+        )
         if open_contracts_count > 0:
             has_open = True
 
-        c_ids = [c.id for c in db.query(FreelanceContract.id).filter_by(project_id=project_id).all()]
+        c_ids = [
+            c.id for c in db.query(FreelanceContract.id).filter_by(project_id=project_id).all()
+        ]
         if c_ids:
-            m_ids = [m.id for m in db.query(Milestone.id).filter(Milestone.contract_id.in_(c_ids)).all()]
+            m_ids = [
+                m.id for m in db.query(Milestone.id).filter(Milestone.contract_id.in_(c_ids)).all()
+            ]
             if m_ids:
                 terminal_m = [
                     MilestoneStatus.PAID_OUT,
@@ -295,53 +377,114 @@ class FreelanceClosureService(ClosurePort):
                     MilestoneStatus.PARTIALLY_RELEASED,
                     MilestoneStatus.CANCELLED,
                 ]
-                non_terminal_count = db.query(Milestone).filter(
-                    Milestone.id.in_(m_ids),
-                    ~Milestone.status.in_(terminal_m),
-                ).count()
+                non_terminal_count = (
+                    db.query(Milestone)
+                    .filter(
+                        Milestone.id.in_(m_ids),
+                        ~Milestone.status.in_(terminal_m),
+                    )
+                    .count()
+                )
                 if non_terminal_count > 0:
                     has_open = True
 
-                if db.query(ActiveMilestoneDispute).filter(ActiveMilestoneDispute.milestone_id.in_(m_ids)).count() > 0:
+                if (
+                    db.query(ActiveMilestoneDispute)
+                    .filter(ActiveMilestoneDispute.milestone_id.in_(m_ids))
+                    .count()
+                    > 0
+                ):
                     has_open = True
 
-                if db.query(MilestoneHold).filter(MilestoneHold.milestone_id.in_(m_ids), MilestoneHold.released_at.is_(None)).count() > 0:
+                if (
+                    db.query(MilestoneHold)
+                    .filter(
+                        MilestoneHold.milestone_id.in_(m_ids), MilestoneHold.released_at.is_(None)
+                    )
+                    .count()
+                    > 0
+                ):
                     has_open = True
 
-                for esc in db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(m_ids)).all():
-                    if (esc.funded_amount - esc.released_gross - esc.refunded_amount > 0) or esc.reserved_amount > 0:
+                for esc in (
+                    db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(m_ids)).all()
+                ):
+                    if (
+                        esc.funded_amount - esc.released_gross - esc.refunded_amount > 0
+                    ) or esc.reserved_amount > 0:
                         has_open = True
                         break
 
-                if db.query(Settlement).filter(
-                    Settlement.milestone_id.in_(m_ids),
-                    Settlement.status.in_([SettlementStatus.PREPARED, SettlementStatus.PROCESSING, SettlementStatus.PARTIALLY_SUCCEEDED]),
-                ).count() > 0:
+                if (
+                    db.query(Settlement)
+                    .filter(
+                        Settlement.milestone_id.in_(m_ids),
+                        Settlement.status.in_(
+                            [
+                                SettlementStatus.PREPARED,
+                                SettlementStatus.PROCESSING,
+                                SettlementStatus.PARTIALLY_SUCCEEDED,
+                            ]
+                        ),
+                    )
+                    .count()
+                    > 0
+                ):
                     has_open = True
 
-                if db.query(MoneyTransfer).join(Settlement, MoneyTransfer.settlement_id == Settlement.id).filter(
-                    Settlement.milestone_id.in_(m_ids),
-                    MoneyTransfer.status.in_([TransferStatus.READY, TransferStatus.PROCESSING, TransferStatus.UNKNOWN]),
-                ).count() > 0:
+                if (
+                    db.query(MoneyTransfer)
+                    .join(Settlement, MoneyTransfer.settlement_id == Settlement.id)
+                    .filter(
+                        Settlement.milestone_id.in_(m_ids),
+                        MoneyTransfer.status.in_(
+                            [
+                                TransferStatus.READY,
+                                TransferStatus.PROCESSING,
+                                TransferStatus.UNKNOWN,
+                            ]
+                        ),
+                    )
+                    .count()
+                    > 0
+                ):
                     has_open = True
 
-                if db.query(PaymentOrder).filter(
-                    PaymentOrder.milestone_id.in_(m_ids),
-                    PaymentOrder.status.in_([
-                        PaymentOrderStatus.CREATING,
-                        PaymentOrderStatus.PENDING,
-                        PaymentOrderStatus.PROCESSING,
-                        PaymentOrderStatus.NEEDS_REVIEW,
-                        PaymentOrderStatus.UNKNOWN,
-                    ]),
-                ).count() > 0:
+                if (
+                    db.query(PaymentOrder)
+                    .filter(
+                        PaymentOrder.milestone_id.in_(m_ids),
+                        PaymentOrder.status.in_(
+                            [
+                                PaymentOrderStatus.CREATING,
+                                PaymentOrderStatus.PENDING,
+                                PaymentOrderStatus.PROCESSING,
+                                PaymentOrderStatus.NEEDS_REVIEW,
+                                PaymentOrderStatus.UNKNOWN,
+                            ]
+                        ),
+                    )
+                    .count()
+                    > 0
+                ):
                     has_open = True
 
-                if db.query(PaymentReviewCase).filter(
-                    PaymentReviewCase.status.in_([PaymentReviewStatus.OPEN, PaymentReviewStatus.UNDER_REVIEW]),
-                ).join(PaymentTransaction, PaymentReviewCase.payment_transaction_id == PaymentTransaction.id).join(
-                    PaymentOrder, PaymentTransaction.payment_order_id == PaymentOrder.id
-                ).filter(PaymentOrder.milestone_id.in_(m_ids)).count() > 0:
+                if (
+                    db.query(PaymentReviewCase)
+                    .filter(
+                        PaymentReviewCase.status.in_(
+                            [PaymentReviewStatus.OPEN, PaymentReviewStatus.UNDER_REVIEW]
+                        ),
+                    )
+                    .join(
+                        PaymentTransaction,
+                        PaymentReviewCase.payment_transaction_id == PaymentTransaction.id,
+                    )
+                    .join(PaymentOrder, PaymentTransaction.payment_order_id == PaymentOrder.id)
+                    .filter(PaymentOrder.milestone_id.in_(m_ids))
+                    .count()
+                    > 0
+                ):
                     has_open = True
 
         # 3. Determine eligible terminal status
@@ -375,7 +518,12 @@ class FreelanceClosureService(ClosurePort):
     ) -> None:
         """Apply eligible project terminal transition in-transaction."""
         _for_update(db.query(FreelanceProject).filter_by(id=project_id), db).first()
-        _for_update(db.query(FreelanceContract).filter_by(project_id=project_id).order_by(FreelanceContract.id.asc()), db).all()
+        _for_update(
+            db.query(FreelanceContract)
+            .filter_by(project_id=project_id)
+            .order_by(FreelanceContract.id.asc()),
+            db,
+        ).all()
 
         state = self.get_project_closure_state(db, project_id=project_id)
         if state.eligible_terminal_status is not None:
@@ -410,7 +558,9 @@ class FreelanceClosureService(ClosurePort):
         ctx: CommandContext,
         contract_id: int,
     ) -> None:
-        run_command(db, lambda: self.recompute_contract_closure_in_tx(db, ctx=ctx, contract_id=contract_id))
+        run_command(
+            db, lambda: self.recompute_contract_closure_in_tx(db, ctx=ctx, contract_id=contract_id)
+        )
 
     def recompute_project_closure(
         self,
@@ -419,7 +569,9 @@ class FreelanceClosureService(ClosurePort):
         ctx: CommandContext,
         project_id: int,
     ) -> None:
-        run_command(db, lambda: self.recompute_project_closure_in_tx(db, ctx=ctx, project_id=project_id))
+        run_command(
+            db, lambda: self.recompute_project_closure_in_tx(db, ctx=ctx, project_id=project_id)
+        )
 
     def cancel_draft_contract_in_tx(
         self,
@@ -430,35 +582,89 @@ class FreelanceClosureService(ClosurePort):
         reason: str | None = None,
     ) -> None:
         """Explicitly cancel a DRAFT or PENDING_ACCEPTANCE contract before activation."""
-        contract = db.get(FreelanceContract, contract_id)
+        from app.services.freelance_contract_service import _lock_contract_hierarchy
+
+        _, contract, budget, _, milestones = _lock_contract_hierarchy(
+            db,
+            contract_id=contract_id,
+            lock_milestones=True,
+        )
         if not contract:
             raise NotFoundError("Contract not found", code="NOT_FOUND")
 
-        if contract.status not in (ContractStatus.DRAFT, ContractStatus.PENDING_ACCEPTANCE):
-            raise ConflictError("Only draft or pending contracts can be cancelled pre-activation", code="INVALID_STATE_TRANSITION")
-
         # Zero-leak check: only project client or student or system/admin
-        student = db.get(Student, contract.freelancer_student_id) if contract.freelancer_student_id else None
+        student = (
+            db.get(Student, contract.freelancer_student_id)
+            if contract.freelancer_student_id
+            else None
+        )
         allowed_users = {contract.client_user_id}
         if student:
             allowed_users.add(student.user_id)
         if ctx.actor_type != ActorType.SYSTEM and ctx.actor_user_id not in allowed_users:
             raise NotFoundError("Contract not found", code="NOT_FOUND")
 
-        milestones = db.query(Milestone).filter_by(contract_id=contract.id).all()
+        if contract.status not in (ContractStatus.DRAFT, ContractStatus.PENDING_ACCEPTANCE):
+            raise ConflictError(
+                "Only draft or pending contracts can be cancelled pre-activation",
+                code="INVALID_STATE_TRANSITION",
+            )
+
         m_ids = [m.id for m in milestones]
         if m_ids:
-            has_guards = db.query(MilestoneFundingGuard).filter(MilestoneFundingGuard.milestone_id.in_(m_ids)).first()
+            if (
+                db.query(PaymentOrder)
+                .filter(
+                    PaymentOrder.milestone_id.in_(m_ids),
+                    PaymentOrder.status.in_(
+                        [
+                            PaymentOrderStatus.CREATING,
+                            PaymentOrderStatus.PENDING,
+                            PaymentOrderStatus.PROCESSING,
+                            PaymentOrderStatus.UNKNOWN,
+                            PaymentOrderStatus.NEEDS_REVIEW,
+                            PaymentOrderStatus.PAID,
+                        ]
+                    ),
+                )
+                .first()
+            ):
+                raise ConflictError(
+                    "Payment must be reconciled before cancellation", code="TERMS_IMMUTABLE"
+                )
+            has_guards = (
+                db.query(MilestoneFundingGuard)
+                .filter(MilestoneFundingGuard.milestone_id.in_(m_ids))
+                .first()
+            )
             if has_guards:
-                raise ConflictError("Cannot cancel contract with guarded milestones", code="TERMS_IMMUTABLE")
+                raise ConflictError(
+                    "Cannot cancel contract with guarded milestones", code="TERMS_IMMUTABLE"
+                )
             for esc in db.query(EscrowAccount).filter(EscrowAccount.milestone_id.in_(m_ids)).all():
-                if (esc.funded_amount - esc.released_gross - esc.refunded_amount > 0) or esc.reserved_amount > 0:
-                    raise ConflictError("Cannot cancel contract with funded escrow", code="TERMS_IMMUTABLE")
+                if (
+                    esc.funded_amount - esc.released_gross - esc.refunded_amount > 0
+                ) or esc.reserved_amount > 0:
+                    raise ConflictError(
+                        "Cannot cancel contract with funded escrow", code="TERMS_IMMUTABLE"
+                    )
 
         now = _norm_utc(ctx.now_utc)
         contract.status = ContractStatus.CANCELLED
         contract.closed_at = now
         contract.closure_reason = reason or "Cancelled draft contract"
+
+        for version in (
+            db.query(ContractVersion)
+            .filter(
+                ContractVersion.contract_id == contract.id,
+                ContractVersion.status.in_(
+                    [ContractVersionStatus.DRAFT, ContractVersionStatus.OFFERED]
+                ),
+            )
+            .all()
+        ):
+            version.status = ContractVersionStatus.WITHDRAWN
 
         # Cancel unstarted milestones
         for m in milestones:
@@ -466,7 +672,6 @@ class FreelanceClosureService(ClosurePort):
                 m.status = MilestoneStatus.CANCELLED
 
         # Release reserved budget
-        budget = db.query(ProjectContractBudget).filter_by(contract_id=contract.id).first()
         if budget:
             budget.status = ContractBudgetStatus.RELEASED
             budget.released_at = now
@@ -493,4 +698,9 @@ class FreelanceClosureService(ClosurePort):
         reason: str | None = None,
     ) -> None:
         """Atomic command runner for cancelling a draft contract."""
-        run_command(db, lambda: self.cancel_draft_contract_in_tx(db, ctx=ctx, contract_id=contract_id, reason=reason))
+        run_command(
+            db,
+            lambda: self.cancel_draft_contract_in_tx(
+                db, ctx=ctx, contract_id=contract_id, reason=reason
+            ),
+        )

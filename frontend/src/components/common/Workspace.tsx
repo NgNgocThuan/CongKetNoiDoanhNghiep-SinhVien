@@ -23,6 +23,7 @@ export type Field = {
     | 'password'
     | 'number'
     | 'date'
+    | 'datetime-local'
     | 'url'
     | 'textarea'
     | 'checkbox'

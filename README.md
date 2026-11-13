@@ -1,5 +1,21 @@
 # Cổng kết nối Sinh viên – Doanh nghiệp – Nhà trường
 
+## Bản hoàn thiện — 13/11/2026
+
+Bản hiện tại gồm tuyển dụng, gợi ý công việc/ứng viên, CV, dự án Freelancer, hợp đồng, ký quỹ, giải ngân/hoàn tiền PayOS, tranh chấp, thông báo và báo cáo quản trị. Xác minh doanh nghiệp bao gồm pháp nhân và quyền đại diện tuyển dụng; MOU là thỏa thuận đối tác tùy chọn.
+
+Chạy ứng dụng với MariaDB và cấu hình riêng:
+
+1. Cài thư viện theo hướng dẫn backend/frontend; sao chép `backend/.env.example` thành `backend/.env` và điền cấu hình của bạn.
+2. Tại `backend`, chạy `python -m alembic upgrade head` để cập nhật schema tới revision `0013`.
+3. Chạy API bằng `python -m uvicorn app.main:app --reload` trong `backend`.
+4. Mở terminal riêng tại `backend`, chạy `python -m scripts.freelancer_worker` để xử lý email, lịch công việc và các tác vụ tài chính đã bật.
+5. Tại `frontend`, chạy `npm ci` rồi `npm run dev`.
+
+Các dịch vụ SMTP, AI, PayOS và chữ ký số cần cấu hình thực tế tương ứng; không đưa `.env`, dữ liệu tải lên hay bản dump database vào Git. Các script seed là dữ liệu tình huống phát triển, không tự chạy khi khởi động. Worker có thể xử lý lệnh chi thật khi bật cấu hình tài chính, nên chỉ chạy trên database/môi trường đã chọn đúng.
+
+Tài liệu: [xác minh doanh nghiệp](docs/COMPANY_AUTHORITY_VERIFICATION.md), [tài khoản ngân hàng và chi trả](docs/SELF_SERVICE_BANKS_AND_WAITING_PAYOUTS.md), [email](docs/EMAIL_FLOW_REVIEW.md), [kỹ năng và CV](docs/CONFIRMED_SKILLS_AND_CV_VIEWER.md).
+
 - Backend: Python FastAPI, SQLAlchemy 2.x và Alembic; cấu hình dự án hướng tới Python 3.11+.
 - Frontend: React + TypeScript + Vite. Xem [hướng dẫn frontend](frontend/README.md).
 - Database: MariaDB, kết nối qua PyMySQL. Docker Compose hiện dùng MariaDB 10.11.

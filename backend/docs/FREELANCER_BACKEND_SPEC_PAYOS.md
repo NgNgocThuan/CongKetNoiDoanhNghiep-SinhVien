@@ -1,6 +1,14 @@
 # Đặc tả backend và database Freelancer — payOS, tiền thật, không ví
 
-**Phiên bản:** 2.2 — bổ sung bộ nền thực thi theo yêu cầu chủ dự án ngày 04/11/2026.
+**Cập nhật 12/11/2026:** bỏ quy trình tải/duyệt chứng từ nguồn chi; dùng số dư PayOS trước khi gửi lệnh và thông báo admin khi cần nạp. Các mô tả treasury hai admin bên dưới là thiết kế cũ, được thay bằng [quy trình hiện tại và giới hạn hạch toán](../../docs/PAYOUT_BALANCE_WORKFLOW.md).
+
+**Cập nhật ngày 10/11/2026 — migration mới nhất 0005:** [quy định đăng công việc mới](freelancer/PROJECT_POSTING_0005.md) bổ sung danh mục, hai hạn riêng, trình độ, tài liệu tham khảo và bản nháp chưa đầy đủ. Nội dung này thay các yêu cầu tạo dự án tương ứng bên dưới. Tổng hiện tại 93 bảng ứng dụng; chưa migrate database đang dùng.
+
+**Cập nhật triển khai F ngày 07/11/2026:** xem [PAYOS_IMPLEMENTATION.md](freelancer/PAYOS_IMPLEMENTATION.md). Worktree local đã có writer tài chính và adapter payOS cấu hình `.env`; migration mới nhất **0004** thêm `finance_counters` (khóa writer/sequence orderCode) và `treasury_entries` (vốn/phí thực có chứng cứ, hai Admin). Tổng 92 bảng ứng dụng. Các ghi chú chưa tích hợp F ở mốc cũ bên dưới là lịch sử; chưa dùng tài khoản payOS thật hoặc migrate DB dự án.
+
+**Phiên bản:** 2.3 — triển khai backend A–D local theo phê duyệt ngày 07/11/2026, bổ sung runtime migration 0003. Giữ nguyên các quyết định nghiệp vụ nền của v2.2.
+
+**Bản triển khai hiện tại:** xem [BACKEND_IMPLEMENTATION.md](freelancer/BACKEND_IMPLEMENTATION.md) để biết API, cấu hình, chính sách mặc định, schema runtime và ranh giới phần F. Chưa commit/push hoặc migrate database dự án; SMS/scanner cần dịch vụ thật theo hợp đồng adapter. Không coi test fake là xác nhận payOS đã chạy tiền thật.
 
 **Trạng thái:** Chủ dự án đã duyệt các quyết định mục 19, với điều chỉnh: một dự án có nhiều sinh viên, mỗi sinh viên một hợp đồng và luồng quyết toán riêng. Đã yêu cầu triển khai phần dùng chung: model, migration 0002, DTO/ports và fixtures đã được chuẩn bị; migration chỉ thử trên DB kiểm thử. Chưa áp dụng lên DB đang dùng hoặc tích hợp payOS thật. Xem [FOUNDATION_STATUS.md](freelancer/FOUNDATION_STATUS.md).
 
@@ -242,6 +250,17 @@ Mặc định bản đầu chỉ MANUALLY_REVIEWED; không có công cụ xác t
 CHECK size_bytes>0. IX `(uploaded_by,created_at)`, `(checksum_sha256)`. Không UQ checksum. File phải CLEAN/AVAILABLE trước khi gắn chứng cứ; API tải file kiểm tra quyền theo hồ sơ liên quan, không chỉ possession file_id. Không lộ public URL giấy tờ, tài khoản ngân hàng hoặc bằng chứng. Không sửa nội dung storage_key sau khi được dùng trong hợp đồng/bằng chứng.
 
 ## 6. Dự án và ứng tuyển
+
+### Bổ sung runtime 0003 đã được cho triển khai
+
+Không sửa migration 0002 đã phát hành. Các bảng bổ sung sau được đưa vào revision 0003 và thử trên DB disposable:
+
+- `freelancer_policies`: id, policy_key UNIQUE, revision>0, values_json, updated_by FK users, updated_at. Bản cấu hình hiện tại và audit lịch sử; contract version chụp policy_revision và các giá trị áp dụng.
+- `otp_rate_buckets`: id, scope_hash UNIQUE, window_started_at, count>=0. Scope HMAC cho user/target/IP và các thao tác đăng ký/onboarding; không lưu IP hoặc mã OTP thô.
+- `dispute_withdrawals`: id, dispute_id FK disputes UNIQUE, requested_by FK users, reason, terms_hash, confirmed_by FK users nullable, created_at, confirmed_at nullable. Người xác nhận phải khác người đề nghị và là bên còn lại của hợp đồng; chỉ rút trước quyết định đã duyệt.
+- `project_expansions`: id, project_id FK freelance_projects, requested_by FK users, request_key, budget_amount>0, max_students>0, reason, status PENDING/APPROVED/REJECTED, reviewed_by FK users nullable, review_reason nullable, reviewed_at nullable, created_at. UNIQUE(project_id,request_key). Tăng trần chỉ có hiệu lực sau duyệt; không sửa hợp đồng đã ký.
+
+Hạn mức mặc định và thời hạn vận hành được liệt kê ở tài liệu triển khai. Đây là cấu hình riêng của dự án; không phải mức do payOS hoặc nền tảng khác áp đặt. Policy update phải có revision và lý do; override doanh nghiệp có audit. Phần F vẫn chịu trách nhiệm enforce các hạn mức thu/chi và ledger.
 
 ### 6.1. `freelance_projects` — CU
 

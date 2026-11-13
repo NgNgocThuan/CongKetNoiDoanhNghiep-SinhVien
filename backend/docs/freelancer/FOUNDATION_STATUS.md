@@ -1,5 +1,7 @@
 # Bộ nền backend đã chuẩn bị và hướng dẫn bàn giao
 
+**Bổ sung local ngày 07/11/2026:** xem [BACKEND_IMPLEMENTATION.md](BACKEND_IMPLEMENTATION.md) và [PAYOS_IMPLEMENTATION.md](PAYOS_IMPLEMENTATION.md). Code A–D, tài chính/payOS, policy/worker và migration đến **0004** được chuẩn bị trên nhánh riêng; các số liệu bên dưới là baseline bộ nền 0002. Database dự án chưa được migrate; chưa giao dịch tiền thật.
+
 Ngày 04/11/2026. Bộ nền phát hành trên main theo yêu cầu chủ dự án; dùng git log để xác định commit nền. Đã kiểm chứng trên MariaDB 10.11 chạy riêng bằng Docker ở cổng 3308; chưa áp dụng migration lên DB đang dùng hoặc thực hiện giao dịch payOS.
 
 ## 1. Phần đã có code

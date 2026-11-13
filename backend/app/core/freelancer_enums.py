@@ -16,6 +16,7 @@ class FileAvailability(StrEnum):
 
 class VerificationChannel(StrEnum):
     EMAIL = "EMAIL"
+    # Historical database rows only. Request schemas accept EMAIL exclusively.
     PHONE = "PHONE"
 
 
@@ -285,6 +286,7 @@ class DisputeDecisionStatus(StrEnum):
 
 
 class BankDestinationStatus(StrEnum):
+    ACTIVE = "ACTIVE"
     PENDING = "PENDING"
     VERIFIED = "VERIFIED"
     REJECTED = "REJECTED"
@@ -320,6 +322,7 @@ class TransferPurpose(StrEnum):
 
 
 class TransferStatus(StrEnum):
+    WAITING_BANK = "WAITING_BANK"
     READY = "READY"
     PROCESSING = "PROCESSING"
     UNKNOWN = "UNKNOWN"

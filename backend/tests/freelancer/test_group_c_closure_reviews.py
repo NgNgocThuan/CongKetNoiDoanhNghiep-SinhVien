@@ -1,4 +1,5 @@
 """Tests for Group C: Ticket C6 (ClosurePort, Multi-contract Invariants, Two-way Reviews)."""
+
 from datetime import datetime
 
 import pytest
@@ -60,10 +61,19 @@ def db_session():
 @pytest.fixture
 def multi_contract_fixtures(db_session):
     db = db_session
-    client = User(id=1, email="client@test.com", role=UserRole.CLIENT, status=UserStatus.ACTIVE)
+    client = User(
+        id=1,
+        email="client@test.com",
+        role=UserRole.CLIENT,
+        status=UserStatus.ACTIVE,
+        email_verified_at=datetime(2026, 1, 1),
+        phone_verified_at=datetime(2026, 1, 1),
+    )
     student1_user = User(id=2, email="s1@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
     student2_user = User(id=3, email="s2@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
-    outsider_user = User(id=4, email="out@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
+    outsider_user = User(
+        id=4, email="out@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE
+    )
     admin_user = User(id=5, email="admin@test.com", role=UserRole.ADMIN, status=UserStatus.ACTIVE)
     db.add_all([client, student1_user, student2_user, outsider_user, admin_user])
     db.flush()
@@ -75,9 +85,33 @@ def multi_contract_fixtures(db_session):
     db.add(major)
     db.flush()
 
-    s1 = Student(id=10, user_id=student1_user.id, student_code="SV001", full_name="Student 1", faculty_id=faculty.id, major_id=major.id, cohort="2026")
-    s2 = Student(id=20, user_id=student2_user.id, student_code="SV002", full_name="Student 2", faculty_id=faculty.id, major_id=major.id, cohort="2026")
-    s_out = Student(id=30, user_id=outsider_user.id, student_code="SV003", full_name="Student Out", faculty_id=faculty.id, major_id=major.id, cohort="2026")
+    s1 = Student(
+        id=10,
+        user_id=student1_user.id,
+        student_code="SV001",
+        full_name="Student 1",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
+    s2 = Student(
+        id=20,
+        user_id=student2_user.id,
+        student_code="SV002",
+        full_name="Student 2",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
+    s_out = Student(
+        id=30,
+        user_id=outsider_user.id,
+        student_code="SV003",
+        full_name="Student Out",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
     db.add_all([s1, s2, s_out])
     db.flush()
 
@@ -99,14 +133,47 @@ def multi_contract_fixtures(db_session):
     db.flush()
 
     # Contract 1 setup
-    app1 = FreelanceApplication(id=101, project_id=project.id, student_id=s1.id, proposal="P1", quoted_amount=2000000, estimated_days=10, status="SELECTED")
+    app1 = FreelanceApplication(
+        id=101,
+        project_id=project.id,
+        student_id=s1.id,
+        proposal="P1",
+        quoted_amount=2000000,
+        estimated_days=10,
+        status="SELECTED",
+    )
     db.add(app1)
     db.flush()
-    c1 = FreelanceContract(id=201, project_id=project.id, application_id=app1.id, client_user_id=client.id, freelancer_student_id=s1.id, status=ContractStatus.ACTIVE)
+    c1 = FreelanceContract(
+        id=201,
+        project_id=project.id,
+        application_id=app1.id,
+        client_user_id=client.id,
+        freelancer_student_id=s1.id,
+        status=ContractStatus.ACTIVE,
+    )
     db.add(c1)
     db.flush()
-    b1 = ProjectContractBudget(project_id=project.id, contract_id=c1.id, allocated_amount=2000000, status=ContractBudgetStatus.COMMITTED)
-    v1 = ContractVersion(id=301, contract_id=c1.id, version_no=1, created_by=client.id, status=ContractVersionStatus.EFFECTIVE, total_amount=2000000, fee_rate_bp=500, review_period_seconds=604800, max_revision_count=3, grace_period_seconds=259200, funding_policy=FundingPolicy.PER_MILESTONE, terms_json={})
+    b1 = ProjectContractBudget(
+        project_id=project.id,
+        contract_id=c1.id,
+        allocated_amount=2000000,
+        status=ContractBudgetStatus.COMMITTED,
+    )
+    v1 = ContractVersion(
+        id=301,
+        contract_id=c1.id,
+        version_no=1,
+        created_by=client.id,
+        status=ContractVersionStatus.EFFECTIVE,
+        total_amount=2000000,
+        fee_rate_bp=500,
+        review_period_seconds=604800,
+        max_revision_count=3,
+        grace_period_seconds=259200,
+        funding_policy=FundingPolicy.PER_MILESTONE,
+        terms_json={},
+    )
     db.add_all([b1, v1])
     db.flush()
     c1.effective_version_id = v1.id
@@ -115,22 +182,75 @@ def multi_contract_fixtures(db_session):
     m1_2 = Milestone(id=402, contract_id=c1.id, sequence_no=2, status=MilestoneStatus.PAID_OUT)
     db.add_all([m1_1, m1_2])
     db.flush()
-    t1_1 = ContractMilestoneTerm(id=501, contract_id=c1.id, contract_version_id=v1.id, milestone_id=m1_1.id, title="Frontend", amount=1000000, acceptance_criteria="OK", due_at=datetime(2026, 11, 20), included=True)
-    t1_2 = ContractMilestoneTerm(id=502, contract_id=c1.id, contract_version_id=v1.id, milestone_id=m1_2.id, title="Backend", amount=1000000, acceptance_criteria="OK", due_at=datetime(2026, 12, 1), included=True)
+    t1_1 = ContractMilestoneTerm(
+        id=501,
+        contract_id=c1.id,
+        contract_version_id=v1.id,
+        milestone_id=m1_1.id,
+        title="Frontend",
+        amount=1000000,
+        acceptance_criteria="OK",
+        due_at=datetime(2026, 11, 20),
+        included=True,
+    )
+    t1_2 = ContractMilestoneTerm(
+        id=502,
+        contract_id=c1.id,
+        contract_version_id=v1.id,
+        milestone_id=m1_2.id,
+        title="Backend",
+        amount=1000000,
+        acceptance_criteria="OK",
+        due_at=datetime(2026, 12, 1),
+        included=True,
+    )
     db.add_all([t1_1, t1_2])
     db.flush()
     m1_1.effective_terms_id = t1_1.id
     m1_2.effective_terms_id = t1_2.id
 
     # Contract 2 setup
-    app2 = FreelanceApplication(id=102, project_id=project.id, student_id=s2.id, proposal="P2", quoted_amount=3000000, estimated_days=15, status="SELECTED")
+    app2 = FreelanceApplication(
+        id=102,
+        project_id=project.id,
+        student_id=s2.id,
+        proposal="P2",
+        quoted_amount=3000000,
+        estimated_days=15,
+        status="SELECTED",
+    )
     db.add(app2)
     db.flush()
-    c2 = FreelanceContract(id=202, project_id=project.id, application_id=app2.id, client_user_id=client.id, freelancer_student_id=s2.id, status=ContractStatus.ACTIVE)
+    c2 = FreelanceContract(
+        id=202,
+        project_id=project.id,
+        application_id=app2.id,
+        client_user_id=client.id,
+        freelancer_student_id=s2.id,
+        status=ContractStatus.ACTIVE,
+    )
     db.add(c2)
     db.flush()
-    b2 = ProjectContractBudget(project_id=project.id, contract_id=c2.id, allocated_amount=3000000, status=ContractBudgetStatus.COMMITTED)
-    v2 = ContractVersion(id=302, contract_id=c2.id, version_no=1, created_by=client.id, status=ContractVersionStatus.EFFECTIVE, total_amount=3000000, fee_rate_bp=500, review_period_seconds=604800, max_revision_count=3, grace_period_seconds=259200, funding_policy=FundingPolicy.PER_MILESTONE, terms_json={})
+    b2 = ProjectContractBudget(
+        project_id=project.id,
+        contract_id=c2.id,
+        allocated_amount=3000000,
+        status=ContractBudgetStatus.COMMITTED,
+    )
+    v2 = ContractVersion(
+        id=302,
+        contract_id=c2.id,
+        version_no=1,
+        created_by=client.id,
+        status=ContractVersionStatus.EFFECTIVE,
+        total_amount=3000000,
+        fee_rate_bp=500,
+        review_period_seconds=604800,
+        max_revision_count=3,
+        grace_period_seconds=259200,
+        funding_policy=FundingPolicy.PER_MILESTONE,
+        terms_json={},
+    )
     db.add_all([b2, v2])
     db.flush()
     c2.effective_version_id = v2.id
@@ -138,7 +258,17 @@ def multi_contract_fixtures(db_session):
     m2_1 = Milestone(id=403, contract_id=c2.id, sequence_no=1, status=MilestoneStatus.IN_PROGRESS)
     db.add(m2_1)
     db.flush()
-    t2_1 = ContractMilestoneTerm(id=503, contract_id=c2.id, contract_version_id=v2.id, milestone_id=m2_1.id, title="Mobile App", amount=3000000, acceptance_criteria="OK", due_at=datetime(2026, 12, 10), included=True)
+    t2_1 = ContractMilestoneTerm(
+        id=503,
+        contract_id=c2.id,
+        contract_version_id=v2.id,
+        milestone_id=m2_1.id,
+        title="Mobile App",
+        amount=3000000,
+        acceptance_criteria="OK",
+        due_at=datetime(2026, 12, 10),
+        included=True,
+    )
     db.add(t2_1)
     db.flush()
     m2_1.effective_terms_id = t2_1.id
@@ -175,6 +305,7 @@ def make_ctx(actor_user_id: int | None = None) -> CommandContext:
 # =============================================================================
 # Ticket C6 Tests: Contract Closure & Budget Invariant
 # =============================================================================
+
 
 def test_c6_contract_closure_completed(db_session, multi_contract_fixtures):
     f = multi_contract_fixtures
@@ -251,7 +382,7 @@ def test_c6_contract_cancellation_pre_activation(db_session, multi_contract_fixt
 
 
 def test_c6_contract_cancellation_when_project_closed(db_session, multi_contract_fixtures):
-    """When project recruitment is closed and no active offered version, draft contract is cancelled."""
+    """Cancelling the project permits closure of an unfunded draft."""
     f = multi_contract_fixtures
     service = FreelanceClosureService()
     ctx = make_ctx(f["client"].id)
@@ -262,7 +393,7 @@ def test_c6_contract_cancellation_when_project_closed(db_session, multi_contract
     v2.status = ContractVersionStatus.DRAFT
     f["m2_1"].status = MilestoneStatus.NOT_FUNDED
     f["b2"].status = ContractBudgetStatus.RESERVED
-    f["project"].recruitment_status = RecruitmentStatus.CLOSED
+    f["project"].status = ProjectStatus.CANCELLED
     db_session.flush()
 
     service.recompute_contract_closure_in_tx(db_session, ctx=ctx, contract_id=f["c2"].id)
@@ -285,7 +416,9 @@ def test_c6_explicit_cancel_draft_contract(db_session, multi_contract_fixtures):
     f["b2"].status = ContractBudgetStatus.RESERVED
     db_session.flush()
 
-    service.cancel_draft_contract_in_tx(db_session, ctx=ctx, contract_id=f["c2"].id, reason="Client withdrew post")
+    service.cancel_draft_contract_in_tx(
+        db_session, ctx=ctx, contract_id=f["c2"].id, reason="Client withdrew post"
+    )
 
     db_session.refresh(f["c2"])
     assert f["c2"].status == ContractStatus.CANCELLED
@@ -299,6 +432,7 @@ def test_c6_explicit_cancel_draft_contract(db_session, multi_contract_fixtures):
 # =============================================================================
 # Ticket C6 Tests: Multi-Contract Project Invariants
 # =============================================================================
+
 
 def test_c6_project_closure_invariants(db_session, multi_contract_fixtures):
     f = multi_contract_fixtures
@@ -366,6 +500,7 @@ def test_c6_project_closed_when_contract_terminated(db_session, multi_contract_f
 # Ticket C6 Tests: Two-Way Reviews
 # =============================================================================
 
+
 def test_c6_mutual_reviews_success(db_session, multi_contract_fixtures):
     f = multi_contract_fixtures
     closure_service = FreelanceClosureService()
@@ -374,11 +509,17 @@ def test_c6_mutual_reviews_success(db_session, multi_contract_fixtures):
     ctx_s1 = make_ctx(f["s1_user"].id)
 
     # Close c1
-    closure_service.recompute_contract_closure_in_tx(db_session, ctx=ctx_client, contract_id=f["c1"].id)
+    closure_service.recompute_contract_closure_in_tx(
+        db_session, ctx=ctx_client, contract_id=f["c1"].id
+    )
 
     # 1. Client reviews Student 1
     r_client = review_service.create_review_in_tx(
-        db_session, ctx=ctx_client, contract_id=f["c1"].id, rating=5, comment="Great student!",
+        db_session,
+        ctx=ctx_client,
+        contract_id=f["c1"].id,
+        rating=5,
+        comment="Great student!",
     )
     assert r_client.reviewer_user_id == f["client"].id
     assert r_client.reviewee_user_id == f["s1_user"].id
@@ -387,7 +528,11 @@ def test_c6_mutual_reviews_success(db_session, multi_contract_fixtures):
 
     # 2. Student 1 reviews Client
     r_student = review_service.create_review_in_tx(
-        db_session, ctx=ctx_s1, contract_id=f["c1"].id, rating=4, comment="Clear instructions",
+        db_session,
+        ctx=ctx_s1,
+        contract_id=f["c1"].id,
+        rating=4,
+        comment="Clear instructions",
     )
     assert r_student.reviewer_user_id == f["s1_user"].id
     assert r_student.reviewee_user_id == f["client"].id
@@ -396,7 +541,11 @@ def test_c6_mutual_reviews_success(db_session, multi_contract_fixtures):
     # 3. Client tries to review again -> 409 INVALID_STATE_TRANSITION
     with pytest.raises(ConflictError) as exc:
         review_service.create_review_in_tx(
-            db_session, ctx=ctx_client, contract_id=f["c1"].id, rating=5, comment="Duplicate review",
+            db_session,
+            ctx=ctx_client,
+            contract_id=f["c1"].id,
+            rating=5,
+            comment="Duplicate review",
         )
     assert exc.value.code == "INVALID_STATE_TRANSITION"
 
@@ -409,22 +558,106 @@ def test_c6_review_invariants(db_session, multi_contract_fixtures):
     # 1. Contract c2 is ACTIVE (not terminal) -> review rejected
     with pytest.raises(ConflictError) as exc:
         review_service.create_review_in_tx(
-            db_session, ctx=ctx_client, contract_id=f["c2"].id, rating=5, comment="Premature",
+            db_session,
+            ctx=ctx_client,
+            contract_id=f["c2"].id,
+            rating=5,
+            comment="Premature",
         )
     assert exc.value.code == "INVALID_STATE_TRANSITION"
 
     # 2. Zero-Leak: Outsider tries to review c1 -> 404 NOT_FOUND
     with pytest.raises(NotFoundError) as exc:
         review_service.create_review_in_tx(
-            db_session, ctx=make_ctx(f["outsider"].id), contract_id=f["c1"].id, rating=5,
+            db_session,
+            ctx=make_ctx(f["outsider"].id),
+            contract_id=f["c1"].id,
+            rating=5,
         )
     assert exc.value.code == "NOT_FOUND"
 
     # 3. Rating out of range -> 422 VALIDATION_ERROR
     # Complete c1 first
-    FreelanceClosureService().recompute_contract_closure_in_tx(db_session, ctx=ctx_client, contract_id=f["c1"].id)
+    FreelanceClosureService().recompute_contract_closure_in_tx(
+        db_session, ctx=ctx_client, contract_id=f["c1"].id
+    )
     with pytest.raises(UnprocessableError) as exc:
         review_service.create_review_in_tx(
-            db_session, ctx=ctx_client, contract_id=f["c1"].id, rating=6,
+            db_session,
+            ctx=ctx_client,
+            contract_id=f["c1"].id,
+            rating=6,
         )
     assert exc.value.code == "VALIDATION_ERROR"
+
+
+def test_recruitment_closure_preserves_draft_negotiation(db_session, multi_contract_fixtures):
+    f = multi_contract_fixtures
+    f["c2"].status = ContractStatus.DRAFT
+    f["c2"].effective_version_id = None
+    db_session.get(ContractVersion, 302).status = ContractVersionStatus.DRAFT
+    f["m2_1"].status = MilestoneStatus.NOT_FUNDED
+    f["b2"].status = ContractBudgetStatus.RESERVED
+    f["project"].recruitment_status = RecruitmentStatus.CLOSED
+    db_session.flush()
+    FreelanceClosureService().recompute_contract_closure_in_tx(
+        db_session, ctx=make_ctx(f["client"].id), contract_id=f["c2"].id
+    )
+    assert f["c2"].status == ContractStatus.DRAFT
+    assert f["b2"].status == ContractBudgetStatus.RESERVED
+
+
+def test_cancel_withdraws_offer_and_prevents_late_acceptance(db_session, multi_contract_fixtures):
+    from app.services.freelance_contract_service import FreelanceContractService
+
+    f = multi_contract_fixtures
+    contract, version = f["c2"], db_session.get(ContractVersion, 302)
+    contract.status = ContractStatus.PENDING_ACCEPTANCE
+    contract.effective_version_id = None
+    version.status = ContractVersionStatus.OFFERED
+    f["m2_1"].status = MilestoneStatus.NOT_FUNDED
+    f["b2"].status = ContractBudgetStatus.RESERVED
+    db_session.flush()
+    FreelanceClosureService().cancel_draft_contract_in_tx(
+        db_session, ctx=make_ctx(f["client"].id), contract_id=contract.id
+    )
+    assert version.status == ContractVersionStatus.WITHDRAWN
+    with pytest.raises(ConflictError):
+        FreelanceContractService().accept_version_in_tx(
+            db_session,
+            ctx=make_ctx(f["client"].id),
+            version_id=version.id,
+            content_hash=version.content_hash,
+        )
+    assert contract.status == ContractStatus.CANCELLED
+    assert f["b2"].status == ContractBudgetStatus.RELEASED
+
+
+def test_cancel_rejects_unreconciled_payment(db_session, multi_contract_fixtures):
+    from app.models import PaymentOrder
+
+    f = multi_contract_fixtures
+    f["c2"].status = ContractStatus.DRAFT
+    f["c2"].effective_version_id = None
+    f["m2_1"].status = MilestoneStatus.NOT_FUNDED
+    f["b2"].status = ContractBudgetStatus.RESERVED
+    db_session.add(
+        PaymentOrder(
+            milestone_id=f["m2_1"].id,
+            payer_user_id=f["client"].id,
+            expected_amount=1000000,
+            order_code=777,
+            request_key="cancel-test",
+            request_hash="a" * 64,
+            receiving_account_snapshot={},
+            expires_at=datetime(2026, 12, 1),
+            status="UNKNOWN",
+        )
+    )
+    db_session.flush()
+    with pytest.raises(ConflictError, match="reconciled"):
+        FreelanceClosureService().cancel_draft_contract_in_tx(
+            db_session, ctx=make_ctx(f["client"].id), contract_id=f["c2"].id
+        )
+    assert f["c2"].status == ContractStatus.DRAFT
+    assert f["b2"].status == ContractBudgetStatus.RESERVED

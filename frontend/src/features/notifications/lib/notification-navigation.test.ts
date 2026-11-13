@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { getNotificationTargetUrl } from './notification-navigation'
 
 describe('notification-navigation smart routing', () => {
+  it('opens payout monitoring from a low balance alert', () => {
+    expect(getNotificationTargetUrl({ ref_type: 'PAYOUT_BALANCE', ref_id: 1 }, 'ADMIN'))
+      .toBe('/admin/freelancer/admin/transfers')
+  })
   it('routes APPLICATION notifications correctly based on role', () => {
     expect(getNotificationTargetUrl({ ref_type: 'APPLICATION', ref_id: 12 }, 'STUDENT')).toBe('/student/applications')
     expect(getNotificationTargetUrl({ ref_type: 'APP_SUBMITTED', ref_id: 12 }, 'COMPANY')).toBe('/company/applications')
@@ -27,8 +31,8 @@ describe('notification-navigation smart routing', () => {
   })
 
   it('routes INTERNSHIP / TERM notifications correctly', () => {
-    expect(getNotificationTargetUrl({ ref_type: 'INTERNSHIP_TERM_OPEN', ref_id: 1 }, 'STUDENT')).toBe('/student/internships')
-    expect(getNotificationTargetUrl({ ref_type: 'TERM_EVALUATION', ref_id: 1 }, 'ADMIN')).toBe('/admin/internships')
+    expect(getNotificationTargetUrl({ ref_type: 'INTERNSHIP_TERM_OPEN', ref_id: 1 }, 'STUDENT')).toBe('/student/notifications')
+    expect(getNotificationTargetUrl({ ref_type: 'TERM_EVALUATION', ref_id: 1 }, 'ADMIN')).toBe('/admin/notifications')
   })
 
   it('falls back to /login when role is absent', () => {

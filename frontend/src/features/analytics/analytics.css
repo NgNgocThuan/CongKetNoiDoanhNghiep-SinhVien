@@ -1,0 +1,234 @@
+.analytics-freelancer {
+  display: grid;
+  gap: 20px;
+}
+
+.analytics-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.analytics-section-heading--compact {
+  margin-top: 6px;
+}
+
+.analytics-section-heading h2 {
+  margin: 4px 0 6px;
+  color: var(--ink);
+  font-size: clamp(21px, 2vw, 27px);
+  letter-spacing: -0.02em;
+}
+
+.analytics-section-heading > div > p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.analytics-eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.analytics-project-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 9px 13px;
+  border: 1px solid #cfe3df;
+  border-radius: 999px;
+  background: #f2faf8;
+  color: #47615d;
+  font-size: 13px;
+}
+
+.analytics-project-total strong {
+  color: #006b61;
+  font-size: 16px;
+}
+
+.analytics-finance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.analytics-finance-card {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  overflow: hidden;
+  min-height: 170px;
+  padding: 26px;
+  border-radius: 18px;
+  color: white;
+  box-shadow: 0 16px 36px rgb(15 63 71 / 16%);
+}
+
+.analytics-finance-card::after {
+  position: absolute;
+  right: -42px;
+  bottom: -68px;
+  width: 180px;
+  height: 180px;
+  border: 34px solid rgb(255 255 255 / 8%);
+  border-radius: 50%;
+  content: '';
+}
+
+.analytics-finance-card--revenue {
+  background: linear-gradient(135deg, #006b61 0%, #0b8b7d 100%);
+}
+
+.analytics-finance-card--payout {
+  background: linear-gradient(135deg, #142b50 0%, #315d8c 100%);
+}
+
+.analytics-finance-icon {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 13%);
+}
+
+.analytics-finance-card p,
+.analytics-finance-card span {
+  margin: 0;
+  color: rgb(255 255 255 / 75%);
+}
+
+.analytics-finance-card p {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.analytics-finance-card strong {
+  display: block;
+  margin: 8px 0 12px;
+  font-size: clamp(27px, 3vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.analytics-finance-card span {
+  position: relative;
+  z-index: 1;
+  display: block;
+  font-size: 12px;
+}
+
+.analytics-operations-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analytics-operation-card {
+  padding: 19px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.analytics-operation-card:hover {
+  border-color: #a9cbc5;
+  box-shadow: 0 10px 28px rgb(34 62 83 / 10%);
+  transform: translateY(-2px);
+}
+
+.analytics-operation-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8697aa;
+}
+
+.analytics-operation-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: #edf5f4;
+  color: #08766c;
+}
+
+.analytics-operation-card--warning .analytics-operation-icon {
+  background: #fff5dd;
+  color: #9b6900;
+}
+
+.analytics-operation-card--danger .analytics-operation-icon {
+  background: #fff0ee;
+  color: #c04438;
+}
+
+.analytics-operation-card--success .analytics-operation-icon {
+  background: #e8f7ef;
+  color: #21845a;
+}
+
+.analytics-operation-card--info .analytics-operation-icon {
+  background: #edf3ff;
+  color: #3469b3;
+}
+
+.analytics-operation-card > strong {
+  display: block;
+  margin-top: 15px;
+  color: var(--ink);
+  font-size: 27px;
+  line-height: 1;
+}
+
+.analytics-operation-card h3 {
+  margin: 10px 0 5px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.analytics-operation-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .analytics-operations-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .analytics-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analytics-finance-grid,
+  .analytics-operations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-finance-card {
+    min-height: 155px;
+    padding: 21px;
+  }
+}

@@ -1,4 +1,5 @@
 """Tests for Group C: Tickets C1 and C2 (Contracts, Versions, Negotiations, Budget Locking)."""
+
 from datetime import datetime
 
 import pytest
@@ -55,7 +56,9 @@ from app.services.freelance_contract_service import (
 
 @pytest.fixture
 def db_session():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
 
     @event.listens_for(engine, "connect")
     def foreign_keys(connection, _):
@@ -70,10 +73,23 @@ def db_session():
 @pytest.fixture
 def contract_fixtures(db_session):
     db = db_session
-    client_user = User(id=1, email="client@test.com", role=UserRole.CLIENT, status=UserStatus.ACTIVE)
-    student1_user = User(id=2, email="student1@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
-    student2_user = User(id=3, email="student2@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
-    outsider_user = User(id=4, email="outsider@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
+    client_user = User(
+        id=1,
+        email="client@test.com",
+        role=UserRole.CLIENT,
+        status=UserStatus.ACTIVE,
+        email_verified_at=datetime(2026, 1, 1),
+        phone_verified_at=datetime(2026, 1, 1),
+    )
+    student1_user = User(
+        id=2, email="student1@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE
+    )
+    student2_user = User(
+        id=3, email="student2@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE
+    )
+    outsider_user = User(
+        id=4, email="outsider@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE
+    )
     admin_user = User(id=5, email="admin@test.com", role=UserRole.ADMIN, status=UserStatus.ACTIVE)
     db.add_all([client_user, student1_user, student2_user, outsider_user, admin_user])
     db.flush()
@@ -85,9 +101,33 @@ def contract_fixtures(db_session):
     db.add(major)
     db.flush()
 
-    s1 = Student(id=10, user_id=student1_user.id, student_code="SV001", full_name="Student One", faculty_id=faculty.id, major_id=major.id, cohort="2026")
-    s2 = Student(id=20, user_id=student2_user.id, student_code="SV002", full_name="Student Two", faculty_id=faculty.id, major_id=major.id, cohort="2026")
-    s_out = Student(id=30, user_id=outsider_user.id, student_code="SV003", full_name="Outsider", faculty_id=faculty.id, major_id=major.id, cohort="2026")
+    s1 = Student(
+        id=10,
+        user_id=student1_user.id,
+        student_code="SV001",
+        full_name="Student One",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
+    s2 = Student(
+        id=20,
+        user_id=student2_user.id,
+        student_code="SV002",
+        full_name="Student Two",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
+    s_out = Student(
+        id=30,
+        user_id=outsider_user.id,
+        student_code="SV003",
+        full_name="Outsider",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
     db.add_all([s1, s2, s_out])
     db.flush()
 
@@ -157,6 +197,7 @@ def make_ctx(actor_user_id: int, request_id="req-1", key=None, now_utc=None) -> 
 # C1 Tests
 # =============================================================================
 
+
 def test_c1_create_contract_success(db_session, contract_fixtures):
     f = contract_fixtures
     service = FreelanceContractService()
@@ -188,7 +229,11 @@ def test_c1_create_contract_success(db_session, contract_fixtures):
     assert budget.status == ContractBudgetStatus.RESERVED
 
     # Verify AuditLog
-    audit = db_session.query(AuditLog).filter_by(entity_id=ref.contract_id, action="contract.created_from_selection").first()
+    audit = (
+        db_session.query(AuditLog)
+        .filter_by(entity_id=ref.contract_id, action="contract.created_from_selection")
+        .first()
+    )
     assert audit is not None
 
 
@@ -198,18 +243,30 @@ def test_c1_create_contract_idempotent_replay(db_session, contract_fixtures):
     ctx = make_ctx(f["client"].id)
 
     ref1 = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
     # Replay identical
     ref2 = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
     assert ref1.contract_id == ref2.contract_id
 
     # Replay with different amount raises IDEMPOTENCY_CONFLICT
     with pytest.raises(ConflictError) as exc:
         service.create_contract_for_selected_application_in_tx(
-            db_session, ctx=ctx, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2500000,
+            db_session,
+            ctx=ctx,
+            project_id=f["project"].id,
+            application_id=f["app1"].id,
+            allocated_amount=2500000,
         )
     assert exc.value.code == "IDEMPOTENCY_CONFLICT"
 
@@ -222,17 +279,29 @@ def test_c1_capacity_and_budget_exceeded(db_session, contract_fixtures):
     # 1. Budget exceeded
     with pytest.raises(ConflictError) as exc:
         service.create_contract_for_selected_application_in_tx(
-            db_session, ctx=ctx, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=6000000,
+            db_session,
+            ctx=ctx,
+            project_id=f["project"].id,
+            application_id=f["app1"].id,
+            allocated_amount=6000000,
         )
     assert exc.value.code == "PROJECT_BUDGET_EXCEEDED"
 
     # Contract 1: 3,000,000
     service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=3000000,
+        db_session,
+        ctx=ctx,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=3000000,
     )
     # Contract 2: 2,000,000 (total = 5,000,000 = max budget, max_students = 2)
     service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx, project_id=f["project"].id, application_id=f["app2"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx,
+        project_id=f["project"].id,
+        application_id=f["app2"].id,
+        allocated_amount=2000000,
     )
 
     # Attempt 3rd contract with a 3rd student -> Capacity exceeded
@@ -249,7 +318,11 @@ def test_c1_capacity_and_budget_exceeded(db_session, contract_fixtures):
 
     with pytest.raises(ConflictError) as exc:
         service.create_contract_for_selected_application_in_tx(
-            db_session, ctx=ctx, project_id=f["project"].id, application_id=app3.id, allocated_amount=100000,
+            db_session,
+            ctx=ctx,
+            project_id=f["project"].id,
+            application_id=app3.id,
+            allocated_amount=100000,
         )
     assert exc.value.code == "PROJECT_CAPACITY_EXCEEDED"
 
@@ -258,6 +331,7 @@ def test_c1_capacity_and_budget_exceeded(db_session, contract_fixtures):
 # C2 Tests: Versioning, Negotiations, Content Hash, Offers, Acceptances
 # =============================================================================
 
+
 def test_c2_version_lifecycle_and_content_hash(db_session, contract_fixtures):
     f = contract_fixtures
     service = FreelanceContractService()
@@ -265,7 +339,11 @@ def test_c2_version_lifecycle_and_content_hash(db_session, contract_fixtures):
     ctx_student = make_ctx(f["student1"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     # 1. Create version DRAFT by Student
@@ -294,7 +372,9 @@ def test_c2_version_lifecycle_and_content_hash(db_session, contract_fixtures):
         ],
     )
 
-    v1 = service.create_version_in_tx(db_session, ctx=ctx_student, contract_id=ref.contract_id, payload=terms_payload)
+    v1 = service.create_version_in_tx(
+        db_session, ctx=ctx_student, contract_id=ref.contract_id, payload=terms_payload
+    )
     assert v1.version_no == 1
     assert v1.status == ContractVersionStatus.DRAFT
     assert v1.content_hash is not None
@@ -313,17 +393,23 @@ def test_c2_version_lifecycle_and_content_hash(db_session, contract_fixtures):
     assert contract.status == ContractStatus.PENDING_ACCEPTANCE
 
     # Check ScheduledJob created for expire
-    job = db_session.query(ScheduledJob).filter_by(job_key=f"contract_version.expire:{v1.id}").first()
+    job = (
+        db_session.query(ScheduledJob).filter_by(job_key=f"contract_version.expire:{v1.id}").first()
+    )
     assert job is not None
     assert job.status == ScheduledJobStatus.PENDING
 
     # 3. Client accepts with wrong hash -> Fail
     with pytest.raises(ConflictError) as exc:
-        service.accept_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id, content_hash="wrong-hash")
+        service.accept_version_in_tx(
+            db_session, ctx=ctx_client, version_id=v1.id, content_hash="wrong-hash"
+        )
     assert exc.value.code == "CONTRACT_VERSION_CONFLICT"
 
     # 4. Client accepts with exact content_hash
-    v1_effective = service.accept_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id, content_hash=v1.content_hash)
+    v1_effective = service.accept_version_in_tx(
+        db_session, ctx=ctx_client, version_id=v1.id, content_hash=v1.content_hash
+    )
     assert v1_effective.status == ContractVersionStatus.EFFECTIVE
     assert v1_effective.client_accepted_at is not None
     assert v1_effective.effective_at is not None
@@ -359,7 +445,11 @@ def test_c2_immutable_terms_guard(db_session, contract_fixtures):
     ctx_student = make_ctx(f["student1"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     # v1 with 1 milestone
@@ -372,13 +462,19 @@ def test_c2_immutable_terms_guard(db_session, contract_fixtures):
             funding_policy=FundingPolicy.PER_MILESTONE,
             milestone_terms=[
                 MilestoneTermInput(
-                    title="Phase 1", amount=2000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                    title="Phase 1",
+                    amount=2000000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 1),
+                    included=True,
                 )
             ],
         ),
     )
     service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id)
-    service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash)
+    service.accept_version_in_tx(
+        db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash
+    )
 
     # Simulate milestone funded guard installed
     ms1 = db_session.query(Milestone).filter_by(contract_id=ref.contract_id, sequence_no=1).first()
@@ -409,7 +505,11 @@ def test_c2_immutable_terms_guard(db_session, contract_fixtures):
                 funding_policy=FundingPolicy.PER_MILESTONE,
                 milestone_terms=[
                     MilestoneTermInput(
-                        title="Phase 1", amount=1500000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                        title="Phase 1",
+                        amount=1500000,
+                        acceptance_criteria="All done",
+                        due_at=datetime(2026, 12, 1),
+                        included=True,
                     )
                 ],
             ),
@@ -425,7 +525,11 @@ def test_c2_immutable_terms_rechecked_on_offer_and_accept(db_session, contract_f
     ctx_student = make_ctx(f["student1"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     # v1 with 2 milestones
@@ -438,16 +542,26 @@ def test_c2_immutable_terms_rechecked_on_offer_and_accept(db_session, contract_f
             funding_policy=FundingPolicy.PER_MILESTONE,
             milestone_terms=[
                 MilestoneTermInput(
-                    title="Phase 1", amount=1000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                    title="Phase 1",
+                    amount=1000000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 1),
+                    included=True,
                 ),
                 MilestoneTermInput(
-                    title="Phase 2", amount=1000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 15), included=True,
+                    title="Phase 2",
+                    amount=1000000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 15),
+                    included=True,
                 ),
             ],
         ),
     )
     service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id)
-    service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash)
+    service.accept_version_in_tx(
+        db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash
+    )
 
     # 1. Test offer re-check: Create v2 DRAFT modifying Phase 1 BEFORE milestone is funded
     v2 = service.create_version_in_tx(
@@ -459,10 +573,18 @@ def test_c2_immutable_terms_rechecked_on_offer_and_accept(db_session, contract_f
             funding_policy=FundingPolicy.PER_MILESTONE,
             milestone_terms=[
                 MilestoneTermInput(
-                    title="Phase 1 Modified", amount=1200000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                    title="Phase 1 Modified",
+                    amount=1200000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 1),
+                    included=True,
                 ),
                 MilestoneTermInput(
-                    title="Phase 2", amount=800000, acceptance_criteria="All done", due_at=datetime(2026, 12, 15), included=True,
+                    title="Phase 2",
+                    amount=800000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 15),
+                    included=True,
                 ),
             ],
         ),
@@ -492,10 +614,18 @@ def test_c2_immutable_terms_rechecked_on_offer_and_accept(db_session, contract_f
             funding_policy=FundingPolicy.PER_MILESTONE,
             milestone_terms=[
                 MilestoneTermInput(
-                    title="Phase 1 Changed Again", amount=1100000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                    title="Phase 1 Changed Again",
+                    amount=1100000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 1),
+                    included=True,
                 ),
                 MilestoneTermInput(
-                    title="Phase 2", amount=900000, acceptance_criteria="All done", due_at=datetime(2026, 12, 15), included=True,
+                    title="Phase 2",
+                    amount=900000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 15),
+                    included=True,
                 ),
             ],
         ),
@@ -509,7 +639,9 @@ def test_c2_immutable_terms_rechecked_on_offer_and_accept(db_session, contract_f
 
     # Student attempting to accept v3 must be blocked by accept_version_in_tx recheck
     with pytest.raises(ConflictError) as exc_acc:
-        service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v3.id, content_hash=v3.content_hash)
+        service.accept_version_in_tx(
+            db_session, ctx=ctx_student, version_id=v3.id, content_hash=v3.content_hash
+        )
     assert exc_acc.value.code == "TERMS_IMMUTABLE"
 
 
@@ -521,7 +653,11 @@ def test_c2_immutable_terms_with_milestone_funding(db_session, contract_fixtures
     ctx_student = make_ctx(f["student1"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     v1 = service.create_version_in_tx(
@@ -533,13 +669,19 @@ def test_c2_immutable_terms_with_milestone_funding(db_session, contract_fixtures
             funding_policy=FundingPolicy.PER_MILESTONE,
             milestone_terms=[
                 MilestoneTermInput(
-                    title="Phase 1", amount=2000000, acceptance_criteria="All done", due_at=datetime(2026, 12, 1), included=True,
+                    title="Phase 1",
+                    amount=2000000,
+                    acceptance_criteria="All done",
+                    due_at=datetime(2026, 12, 1),
+                    included=True,
                 )
             ],
         ),
     )
     service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id)
-    service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash)
+    service.accept_version_in_tx(
+        db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash
+    )
 
     ms1 = db_session.query(Milestone).filter_by(contract_id=ref.contract_id, sequence_no=1).first()
     # Add MilestoneFunding record with valid parent FK rows
@@ -600,7 +742,11 @@ def test_c2_immutable_terms_with_milestone_funding(db_session, contract_fixtures
                 funding_policy=FundingPolicy.PER_MILESTONE,
                 milestone_terms=[
                     MilestoneTermInput(
-                        title="Phase 1", amount=1500000, acceptance_criteria="Modified", due_at=datetime(2026, 12, 1), included=True,
+                        title="Phase 1",
+                        amount=1500000,
+                        acceptance_criteria="Modified",
+                        due_at=datetime(2026, 12, 1),
+                        included=True,
                     )
                 ],
             ),
@@ -616,12 +762,18 @@ def test_c2_zero_leak_ownership(db_session, contract_fixtures):
     ctx_outsider = make_ctx(f["outsider"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     # Outsider viewing contract -> 404
     with pytest.raises(NotFoundError) as exc:
-        service.get_contract(db_session, contract_id=ref.contract_id, actor_user_id=ctx_outsider.actor_user_id)
+        service.get_contract(
+            db_session, contract_id=ref.contract_id, actor_user_id=ctx_outsider.actor_user_id
+        )
     assert exc.value.code == "NOT_FOUND"
 
     # Outsider creating version -> 404
@@ -633,13 +785,22 @@ def test_c2_zero_leak_ownership(db_session, contract_fixtures):
             payload=ContractVersionCreate(
                 total_amount=2000000,
                 funding_policy=FundingPolicy.PER_MILESTONE,
-                milestone_terms=[MilestoneTermInput(title="T", amount=2000000, acceptance_criteria="C", due_at=datetime(2026, 12, 1))],
+                milestone_terms=[
+                    MilestoneTermInput(
+                        title="T",
+                        amount=2000000,
+                        acceptance_criteria="C",
+                        due_at=datetime(2026, 12, 1),
+                    )
+                ],
             ),
         )
     assert exc.value.code == "NOT_FOUND"
 
     # Admin CAN view
-    admin_view = service.get_contract(db_session, contract_id=ref.contract_id, actor_user_id=f["admin"].id, is_admin=True)
+    admin_view = service.get_contract(
+        db_session, contract_id=ref.contract_id, actor_user_id=f["admin"].id, is_admin=True
+    )
     assert admin_view.id == ref.contract_id
 
 
@@ -650,7 +811,11 @@ def test_c2_decline_and_withdraw_flow(db_session, contract_fixtures):
     ctx_student = make_ctx(f["student1"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     # 1. Withdraw draft
@@ -661,7 +826,14 @@ def test_c2_decline_and_withdraw_flow(db_session, contract_fixtures):
         payload=ContractVersionCreate(
             total_amount=2000000,
             funding_policy=FundingPolicy.PER_MILESTONE,
-            milestone_terms=[MilestoneTermInput(title="T1", amount=2000000, acceptance_criteria="C1", due_at=datetime(2026, 12, 1))],
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="T1",
+                    amount=2000000,
+                    acceptance_criteria="C1",
+                    due_at=datetime(2026, 12, 1),
+                )
+            ],
         ),
     )
     v1_withdrawn = service.withdraw_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id)
@@ -675,13 +847,22 @@ def test_c2_decline_and_withdraw_flow(db_session, contract_fixtures):
         payload=ContractVersionCreate(
             total_amount=2000000,
             funding_policy=FundingPolicy.PER_MILESTONE,
-            milestone_terms=[MilestoneTermInput(title="T2", amount=2000000, acceptance_criteria="C2", due_at=datetime(2026, 12, 1))],
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="T2",
+                    amount=2000000,
+                    acceptance_criteria="C2",
+                    due_at=datetime(2026, 12, 1),
+                )
+            ],
         ),
     )
     service.offer_version_in_tx(db_session, ctx=ctx_student, version_id=v2.id)
 
     # Client declines with note
-    v2_declined = service.decline_version_in_tx(db_session, ctx=ctx_client, version_id=v2.id, response_note="Price too high")
+    v2_declined = service.decline_version_in_tx(
+        db_session, ctx=ctx_client, version_id=v2.id, response_note="Price too high"
+    )
     assert v2_declined.status == ContractVersionStatus.DECLINED
     assert v2_declined.response_note == "Price too high"
 
@@ -699,7 +880,11 @@ def test_c2_contracts_router_http(db_session, contract_fixtures):
     ctx_client = make_ctx(f["client"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
     db_session.commit()
 
@@ -708,6 +893,7 @@ def test_c2_contracts_router_http(db_session, contract_fixtures):
     app.include_router(contracts_router)
 
     current_actor = f["client"]
+
     def override_get_db():
         yield db_session
 
@@ -749,7 +935,7 @@ def test_c2_contracts_router_http(db_session, contract_fixtures):
     # 3. GET versions
     resp = client.get(f"/freelance-contracts/{ref.contract_id}/versions")
     assert resp.status_code == 200
-    assert len(resp.json()) == 1
+    assert len(resp.json()["items"]) == 1
 
     # 4. POST offer
     resp = client.post(f"/contract-versions/{version_id}/offer")
@@ -758,7 +944,9 @@ def test_c2_contracts_router_http(db_session, contract_fixtures):
 
     # 5. Switch to student and POST accept
     current_actor = f["student1"]
-    resp = client.post(f"/contract-versions/{version_id}/accept", json={"content_hash": content_hash})
+    resp = client.post(
+        f"/contract-versions/{version_id}/accept", json={"content_hash": content_hash}
+    )
     assert resp.status_code == 200
     assert resp.json()["status"] == "EFFECTIVE"
 
@@ -776,7 +964,11 @@ def test_c2_version_expiration_and_persistence(db_session, contract_fixtures):
     ctx_student_late = make_ctx(f["student1"].id, now_utc=datetime(2026, 11, 10))
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     v1 = service.create_version_in_tx(
@@ -786,12 +978,21 @@ def test_c2_version_expiration_and_persistence(db_session, contract_fixtures):
         payload=ContractVersionCreate(
             total_amount=2000000,
             funding_policy=FundingPolicy.PER_MILESTONE,
-            milestone_terms=[MilestoneTermInput(title="T1", amount=2000000, acceptance_criteria="C1", due_at=datetime(2026, 12, 1))],
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="T1",
+                    amount=2000000,
+                    acceptance_criteria="C1",
+                    due_at=datetime(2026, 12, 1),
+                )
+            ],
         ),
     )
 
     # Offer with deadline on 2026-11-06
-    service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id, acceptance_deadline=datetime(2026, 11, 6))
+    service.offer_version_in_tx(
+        db_session, ctx=ctx_client, version_id=v1.id, acceptance_deadline=datetime(2026, 11, 6)
+    )
     db_session.commit()
 
     # Student accepts after deadline
@@ -820,7 +1021,11 @@ def test_c2_duplicate_accept_prevented(db_session, contract_fixtures):
     ctx_client = make_ctx(f["client"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     v1 = service.create_version_in_tx(
@@ -830,7 +1035,14 @@ def test_c2_duplicate_accept_prevented(db_session, contract_fixtures):
         payload=ContractVersionCreate(
             total_amount=2000000,
             funding_policy=FundingPolicy.PER_MILESTONE,
-            milestone_terms=[MilestoneTermInput(title="T1", amount=2000000, acceptance_criteria="C1", due_at=datetime(2026, 12, 1))],
+            milestone_terms=[
+                MilestoneTermInput(
+                    title="T1",
+                    amount=2000000,
+                    acceptance_criteria="C1",
+                    due_at=datetime(2026, 12, 1),
+                )
+            ],
         ),
     )
     # Client offers: client_accepted_at is set automatically
@@ -856,7 +1068,11 @@ def test_c2_cannot_omit_or_modify_funded_milestone(db_session, contract_fixtures
     ctx_student = make_ctx(f["student1"].id)
 
     ref = service.create_contract_for_selected_application_in_tx(
-        db_session, ctx=ctx_client, project_id=f["project"].id, application_id=f["app1"].id, allocated_amount=2000000,
+        db_session,
+        ctx=ctx_client,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
     )
 
     v1 = service.create_version_in_tx(
@@ -867,13 +1083,25 @@ def test_c2_cannot_omit_or_modify_funded_milestone(db_session, contract_fixtures
             total_amount=2000000,
             funding_policy=FundingPolicy.PER_MILESTONE,
             milestone_terms=[
-                MilestoneTermInput(title="M1", amount=1000000, acceptance_criteria="C1", due_at=datetime(2026, 12, 1)),
-                MilestoneTermInput(title="M2", amount=1000000, acceptance_criteria="C2", due_at=datetime(2026, 12, 15)),
+                MilestoneTermInput(
+                    title="M1",
+                    amount=1000000,
+                    acceptance_criteria="C1",
+                    due_at=datetime(2026, 12, 1),
+                ),
+                MilestoneTermInput(
+                    title="M2",
+                    amount=1000000,
+                    acceptance_criteria="C2",
+                    due_at=datetime(2026, 12, 15),
+                ),
             ],
         ),
     )
     service.offer_version_in_tx(db_session, ctx=ctx_client, version_id=v1.id)
-    service.accept_version_in_tx(db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash)
+    service.accept_version_in_tx(
+        db_session, ctx=ctx_student, version_id=v1.id, content_hash=v1.content_hash
+    )
 
     # Fund milestone 1 and milestone 2
     ms1 = db_session.query(Milestone).filter_by(contract_id=ref.contract_id, sequence_no=1).first()
@@ -892,7 +1120,12 @@ def test_c2_cannot_omit_or_modify_funded_milestone(db_session, contract_fixtures
                 total_amount=1000000,
                 funding_policy=FundingPolicy.PER_MILESTONE,
                 milestone_terms=[
-                    MilestoneTermInput(title="M1", amount=1000000, acceptance_criteria="C1", due_at=datetime(2026, 12, 1)),
+                    MilestoneTermInput(
+                        title="M1",
+                        amount=1000000,
+                        acceptance_criteria="C1",
+                        due_at=datetime(2026, 12, 1),
+                    ),
                 ],
             ),
         )
@@ -908,10 +1141,54 @@ def test_c2_cannot_omit_or_modify_funded_milestone(db_session, contract_fixtures
                 total_amount=2000000,
                 funding_policy=FundingPolicy.PER_MILESTONE,
                 milestone_terms=[
-                    MilestoneTermInput(title="M1 Modified", amount=1000000, acceptance_criteria="C1", due_at=datetime(2026, 12, 1)),
-                    MilestoneTermInput(title="M2", amount=1000000, acceptance_criteria="C2", due_at=datetime(2026, 12, 15)),
+                    MilestoneTermInput(
+                        title="M1 Modified",
+                        amount=1000000,
+                        acceptance_criteria="C1",
+                        due_at=datetime(2026, 12, 1),
+                    ),
+                    MilestoneTermInput(
+                        title="M2",
+                        amount=1000000,
+                        acceptance_criteria="C2",
+                        due_at=datetime(2026, 12, 15),
+                    ),
                 ],
             ),
         )
     assert exc.value.code == "TERMS_IMMUTABLE"
 
+
+@pytest.mark.parametrize("case", ["fee", "full"])
+def test_server_policy_cannot_be_bypassed_in_contract_terms(db_session, contract_fixtures, case):
+    f = contract_fixtures
+    service = FreelanceContractService()
+    context = make_ctx(f["client"].id)
+    ref = service.create_contract_for_selected_application_in_tx(
+        db_session,
+        ctx=context,
+        project_id=f["project"].id,
+        application_id=f["app1"].id,
+        allocated_amount=2000000,
+    )
+    if case == "full":
+        f["project"].funding_policy = FundingPolicy.FULL
+    db_session.commit()
+    payload = ContractVersionCreate(
+        total_amount=2000000,
+        fee_rate_bp=0 if case == "fee" else 500,
+        funding_policy=FundingPolicy.PER_MILESTONE,
+        milestone_terms=[
+            MilestoneTermInput(
+                title="Scope",
+                amount=2000000,
+                acceptance_criteria="Pass review",
+                due_at=datetime(2026, 12, 1),
+            )
+        ],
+    )
+    with pytest.raises(ConflictError):
+        service.create_version(
+            db_session, ctx=context, contract_id=ref.contract_id, payload=payload
+        )
+    assert db_session.query(ContractVersion).filter_by(contract_id=ref.contract_id).count() == 0

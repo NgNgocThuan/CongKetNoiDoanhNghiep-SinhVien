@@ -4,6 +4,7 @@ from fastapi import BackgroundTasks
 from app.core.enums import EmailStatus, UserRole
 from app.models import EmailLog
 from app.services import email_service, notification_service
+from app.services.email_payload import encrypt_body
 
 
 def test_list_notifications_and_unread_count(client, make_user, auth_headers, db):
@@ -91,6 +92,7 @@ def test_retry_failed_emails(db):
         recipient_email="retry_test@test.com",
         type="TEST",
         subject="Retry Test",
+        body_encrypted=encrypt_body("<p>Nội dung gốc</p>"),
         status=EmailStatus.FAILED,
         retry_count=1,
     )

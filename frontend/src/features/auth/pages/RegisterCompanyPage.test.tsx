@@ -62,10 +62,17 @@ describe('RegisterCompanyPage', () => {
     await userEvent.type(screen.getByPlaceholderText(/VD: Trần Thị Mai Lan/i), 'Nguyễn Văn Tuyển')
     await userEvent.type(screen.getByPlaceholderText(/VD: 0982 123 456/i), '0912345678')
 
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: /Gửi hồ sơ đăng ký/i })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Điều khoản Dịch vụ & Tuyển dụng' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Tôi đã đọc và Đồng ý' }))
+    expect(screen.getByRole('checkbox')).toBeChecked()
+
     await userEvent.click(screen.getByRole('button', { name: /Gửi hồ sơ đăng ký/i }))
 
     await waitFor(() => {
       expect(authApi.registerCompany).toHaveBeenCalledWith({
+        terms_acceptance: { accepted: true, version: '2026-11-12' },
         email: 'hr@vietnamtech.com',
         password: 'SecurePass@2025',
         company_name: 'Vietnam Tech Corp',

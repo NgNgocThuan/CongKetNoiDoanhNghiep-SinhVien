@@ -49,3 +49,18 @@ temp/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local review artifacts and database snapshots
+/backend.zip
+/frontend.zip
+/docs.zip
+/doc_content.txt
+/latest_doc_content.txt
+/extracted_sequence.txt
+/extracted_use_cases.txt
+/backend/database/student_connect_latest.sql
+/backend/pytest-*/
+/backend/.pytest-run-*/
+/backend/.test-tmp/
+/frontend/design-reference/
+/frontend/docs/freelancer-previews/

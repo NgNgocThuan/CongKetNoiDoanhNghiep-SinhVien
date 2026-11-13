@@ -5,9 +5,7 @@ Vòng đời tin:
                                         \\--(TV1 từ chối)--> REJECTED --submit--> PENDING_APPROVAL
     Sửa tin APPROVED -> quay lại PENDING_APPROVAL.   Đóng tin -> CLOSED.
 
-Hàm dành cho module khác:
-    list_jobs_by_term(db, term_id, params, status=None)   (TV2: liệt kê tin theo đợt)
-    expire_overdue_jobs(db)                               (job định kỳ)
+Hàm dùng cho tác vụ định kỳ: expire_overdue_jobs(db).
 """
 from datetime import date, timedelta
 from typing import Optional
@@ -15,13 +13,12 @@ from typing import Optional
 from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.enums import ApplicationStatus, JobStatus, TermStatus, UserRole, VerificationStatus
-from app.core.exceptions import BadRequestError, ConflictError, ForbiddenError, NotFoundError
+from app.core.enums import ApplicationStatus, JobStatus, UserRole
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models import (
     Application,
     Company,
     Industry,
-    InternshipTerm,
     Job,
     JobMajor,
     JobSkill,
@@ -30,7 +27,6 @@ from app.models import (
     Major,
     Skill,
     Student,
-    TermStudent,
     User,
 )
 from app.schemas.common import PageParams
@@ -84,13 +80,11 @@ def _visible_to_student(student_id: int):
     """Điều kiện tin được hiển thị cho sinh viên.
 
     * status = APPROVED và còn hạn (deadline >= hôm nay)
-    * tin tự do (term_id NULL) hiện với mọi sinh viên; tin thuộc đợt chỉ hiện với sinh viên nằm trong đợt đó
+    Mọi tin đã duyệt, còn hạn đều mở cho sinh viên, kể cả tin có metadata lịch sử.
     """
-    student_terms = select(TermStudent.term_id).where(TermStudent.student_id == student_id)
     return and_(
         Job.status == JobStatus.APPROVED,
         Job.deadline >= today(),
-        or_(Job.term_id.is_(None), Job.term_id.in_(student_terms)),
     )
 
 
@@ -110,7 +104,6 @@ def _validate_refs(
     *,
     job_type_id: Optional[int] = None,
     industry_id: Optional[int] = None,
-    term_id: Optional[int] = None,
     skill_ids: Optional[list[int]] = None,
     major_ids: Optional[list[int]] = None,
 ) -> None:
@@ -120,12 +113,6 @@ def _validate_refs(
             raise BadRequestError("Loại hình công việc không tồn tại")
     if industry_id is not None and db.get(Industry, industry_id) is None:
         raise BadRequestError("Lĩnh vực không tồn tại")
-    if term_id is not None:
-        term = db.get(InternshipTerm, term_id)
-        if term is None:
-            raise BadRequestError("Đợt thực tập không tồn tại")
-        if term.status == TermStatus.CLOSED:
-            raise BadRequestError("Đợt thực tập đã đóng")
     if skill_ids:
         found = db.scalars(select(Skill.id).where(Skill.id.in_(skill_ids), Skill.is_active.is_(True))).all()
         if len(set(found)) != len(set(skill_ids)):
@@ -137,10 +124,8 @@ def _validate_refs(
 
 
 def _require_approved_company(company: Company) -> None:
-    if company.verification_status != VerificationStatus.APPROVED:
-        raise ForbiddenError(
-            "Doanh nghiệp chưa được nhà trường xác thực nên chưa thể đăng tin", code="COMPANY_NOT_APPROVED"
-        )
+    from app.services.company_eligibility import require_verified_company
+    require_verified_company(company)
 
 
 def _replace_skills(db: Session, job: Job, skills) -> None:
@@ -164,7 +149,6 @@ def create_job(db: Session, company: Company, data: JobCreate) -> Job:
         db,
         job_type_id=data.job_type_id,
         industry_id=data.industry_id,
-        term_id=data.term_id,
         skill_ids=[item.skill_id for item in data.skills],
         major_ids=data.major_ids,
     )
@@ -198,7 +182,6 @@ def update_job(db: Session, company: Company, job_id: int, data: JobUpdate) -> J
         db,
         job_type_id=changes.get("job_type_id"),
         industry_id=changes.get("industry_id"),
-        term_id=changes.get("term_id"),
         skill_ids=[item.skill_id for item in new_skills] if new_skills is not None else None,
         major_ids=new_major_ids,
     )
@@ -226,7 +209,11 @@ def submit_for_approval(db: Session, company: Company, job_id: int) -> Job:
     _require_approved_company(company)
     if job.deadline < today():
         raise BadRequestError("Hạn nộp đã qua, hãy cập nhật hạn nộp trước khi gửi duyệt")
-    job.status = JobStatus.PENDING_APPROVAL
+    from app.services.freelancer_accounts.eligibility_service import company_has_valid_mou
+    partner = company_has_valid_mou(db, company.id, utcnow())
+    job.status = JobStatus.APPROVED if partner else JobStatus.PENDING_APPROVAL
+    job.is_featured = partner
+    job.approved_at = utcnow() if partner else None
     job.reject_reason = None
     db.commit()
     return _load_job(db, job.id)
@@ -246,7 +233,7 @@ def list_my_jobs(db: Session, company: Company, params: PageParams, *, status: O
     stmt = select(Job).where(Job.company_id == company.id).options(*_LIST_OPTIONS)
     if status is not None:
         stmt = stmt.where(Job.status == status)
-    stmt = stmt.order_by(Job.created_at.desc(), Job.id.desc())
+    stmt = stmt.order_by(Job.is_featured.desc(), Job.created_at.desc(), Job.id.desc())
     result = paginate(db, stmt, params)
 
     job_ids = [job.id for job in result["items"]]
@@ -310,10 +297,6 @@ def search_jobs(db: Session, student: Student, params: PageParams, filters: JobF
         stmt = stmt.where(Job.job_type_id == filters.job_type_id)
     if filters.work_mode is not None:
         stmt = stmt.where(Job.work_mode == filters.work_mode)
-    if filters.flow == "free":
-        stmt = stmt.where(Job.term_id.is_(None))
-    elif filters.flow == "term":
-        stmt = stmt.where(Job.term_id.is_not(None))
     if filters.major_id is not None:
         # Tin không khai báo ngành nào = mọi ngành đều được ứng tuyển
         has_any_major = exists().where(JobMajor.job_id == Job.id)
@@ -326,7 +309,7 @@ def search_jobs(db: Session, student: Student, params: PageParams, filters: JobF
     if filters.salary_to is not None:
         stmt = stmt.where(func.coalesce(Job.salary_min, Job.salary_max) <= filters.salary_to)
 
-    stmt = stmt.order_by(Job.created_at.desc(), Job.id.desc())
+    stmt = stmt.order_by(Job.is_featured.desc(), Job.created_at.desc(), Job.id.desc())
     return paginate(db, stmt, params)
 
 
@@ -369,17 +352,6 @@ def get_job_detail(db: Session, job_id: int, user: User) -> Job:
 
 
 # ---------------------------------------------------------------- Dùng cho module khác / job định kỳ
-def list_jobs_by_term(
-    db: Session, term_id: int, params: PageParams, *, status: Optional[JobStatus] = None
-) -> dict:
-    """Liệt kê tin thuộc một đợt thực tập (TV2 dùng cho phía nhà trường)."""
-    stmt = select(Job).where(Job.term_id == term_id).options(*_LIST_OPTIONS)
-    if status is not None:
-        stmt = stmt.where(Job.status == status)
-    stmt = stmt.order_by(Job.created_at.desc(), Job.id.desc())
-    return paginate(db, stmt, params)
-
-
 def expire_overdue_jobs(db: Session) -> int:
     """Chuyển tin APPROVED đã quá hạn (deadline < hôm nay) sang EXPIRED. Trả về số tin đã chuyển."""
     result = db.execute(

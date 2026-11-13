@@ -1,0 +1,18 @@
+export const projectGuides = [
+  { category: 'Lập trình / Công nghệ', title: 'Xây dựng landing page giới thiệu sản phẩm, tối ưu điện thoại',
+    scope: 'Dùng HTML/CSS hoặc React để xây dựng một trang gồm giới thiệu, lợi ích, bảng giá và biểu mẫu liên hệ theo nội dung doanh nghiệp cung cấp. Không bao gồm thanh toán trực tuyến hoặc quản trị dữ liệu.',
+    deliverables: ['Mã nguồn trong kho Git và README hướng dẫn chạy.', 'Bản xem thử hoạt động ở màn hình 375px và desktop; biểu mẫu kiểm tra dữ liệu đầu vào.', 'Không lỗi liên kết hoặc tràn nội dung; bàn giao tài nguyên được phép sử dụng.'],
+    milestones: ['Mốc 1 — 40%: Duyệt bố cục và bản mẫu responsive với nội dung thật.', 'Mốc 2 — 60%: Hoàn thiện chức năng, kiểm tra các kích thước màn hình và bàn giao mã nguồn.'] },
+  { category: 'Thiết kế / Sáng tạo', title: 'Thiết kế bộ 6 banner quảng cáo cho chiến dịch tuyển sinh',
+    scope: 'Xây dựng một hướng thiết kế theo nhận diện đã có, phát triển 6 banner cho 2 kích thước đã thống nhất. Doanh nghiệp cung cấp logo, nội dung và ảnh được phép sử dụng; tối đa 2 vòng chỉnh sửa theo tiêu chí hợp đồng.',
+    deliverables: ['Tệp thiết kế có thể chỉnh sửa (.fig hoặc .ai) và ảnh xuất PNG.', 'Đủ 6 banner, đúng kích thước, không lỗi chính tả và không méo logo.', 'Danh sách font, ảnh và giấy phép tài nguyên sử dụng.'],
+    milestones: ['Mốc 1 — 30%: Duyệt một phương án thiết kế và 2 banner đầu tiên.', 'Mốc 2 — 70%: Hoàn thiện 6 banner, kiểm tra nội dung và bàn giao tệp gốc.'] },
+  { category: 'Văn phòng / Dữ liệu', title: 'Nhập và chuẩn hóa 2.000 dòng dữ liệu sản phẩm từ bản scan vào Excel',
+    scope: 'Nhập mã, tên, đơn vị, giá và ngày cập nhật theo mẫu Excel được cung cấp. Đánh dấu dữ liệu không đọc được để doanh nghiệp xác nhận; không tự suy đoán giá trị thiếu.',
+    deliverables: ['Tệp .xlsx gồm bảng dữ liệu sạch và danh sách ngoại lệ.', 'Không trùng mã; thống nhất định dạng ngày, đơn vị và số tiền.', 'Đối chiếu mẫu 200 dòng đầu và kiểm tra đầy đủ số lượng bản ghi.'],
+    milestones: ['Mốc 1 — 40%: Kiểm tra 200 bản ghi đầu tiên, chốt quy tắc chuẩn hóa.', 'Mốc 2 — 60%: Bàn giao 2.000 dòng, bảng ngoại lệ và kết quả kiểm tra.'] },
+  { category: 'Nội dung / Dịch thuật', title: 'Dịch tài liệu hướng dẫn sử dụng 5.000 từ từ tiếng Anh sang tiếng Việt',
+    scope: 'Dịch nội dung hướng dẫn theo thuật ngữ doanh nghiệp cung cấp, giữ cấu trúc đề mục và bảng. Không bao gồm dịch công chứng; các thuật ngữ chưa rõ phải được xác nhận.',
+    deliverables: ['Tệp .docx song ngữ và bản tiếng Việt hoàn chỉnh.', 'Bảng thuật ngữ đã thống nhất; đủ nội dung, không bỏ sót cảnh báo.', 'Kiểm tra chính tả, đơn vị đo, số liệu và đánh số đề mục.'],
+    milestones: ['Mốc 1 — 30%: Duyệt bản dịch 500 từ đầu và bảng thuật ngữ.', 'Mốc 2 — 70%: Bàn giao toàn bộ tài liệu đã hiệu đính và xử lý phản hồi.'] },
+];

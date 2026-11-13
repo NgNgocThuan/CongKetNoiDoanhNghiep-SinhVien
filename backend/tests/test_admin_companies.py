@@ -9,6 +9,7 @@ def test_company_approval_e2e_flow(client, make_user, auth_headers, db):
 
     # 1. Doanh nghiệp tự đăng ký qua /auth/register-company
     reg_data = {
+        "terms_acceptance": {"accepted": True, "version": "2026-11-12"},
         "email": "hr@vinfast.vn",
         "password": "Password@123",
         "company_name": "VinFast Auto",
@@ -58,17 +59,21 @@ def test_company_approval_e2e_flow(client, make_user, auth_headers, db):
     assert detail_data["documents"][0]["doc_type"] == "BUSINESS_LICENSE"
 
     # 5. Admin phê duyệt doanh nghiệp
+    from tests.company_verification_factory import approve_submitted_company
+    assert client.post(f"/api/v1/admin/companies/{company_id}/approve", headers=admin_headers).status_code == 409
+    approve_submitted_company(client, db, company_id, admin_headers)
+    db.refresh(doc.company)
     approve_res = client.post(
         f"/api/v1/admin/companies/{company_id}/approve",
         headers=admin_headers,
     )
-    assert approve_res.status_code == 200
-    assert approve_res.json()["verification_status"] == VerificationStatus.APPROVED.value
+    assert approve_res.status_code == 409  # Already approved by the authority workflow.
+    assert db.get(Company, company_id).verification_status == VerificationStatus.APPROVED
 
     # Kiểm tra notification đã được tạo cho doanh nghiệp
     from sqlalchemy import select
     user_notis = db.scalars(select(Notification).where(Notification.user_id == user_id)).all()
-    assert any(n.type == "COMPANY_APPROVED" for n in user_notis)
+    assert any(n.ref_type == "BUSINESS_VERIFICATION" for n in user_notis)
 
     # 6. Doanh nghiệp đăng nhập thành công sau khi duyệt
     success_login = client.post(

@@ -1,8 +1,9 @@
 """FastAPI router for deliverables and submissions history."""
+
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, status
+from fastapi import APIRouter, Header, Query, status
 
 from app.contracts.freelancer.types import CommandContext
 from app.core.enums import UserRole
@@ -13,6 +14,8 @@ from app.models.freelancer_contracts import (
     DeliverableFile,
     MilestoneReview,
 )
+from app.models.freelancer_identity import StoredFile
+from app.schemas.common import Page
 from app.schemas.deliverables import (
     DeliverableCreate,
     DeliverableFileRead,
@@ -25,7 +28,9 @@ router = APIRouter(tags=["Freelance Deliverables"])
 service = DeliverableService()
 
 
-def _build_context(user: CurrentUser, request_id: str | None, idempotency_key: str | None) -> CommandContext:
+def _build_context(
+    user: CurrentUser, request_id: str | None, idempotency_key: str | None
+) -> CommandContext:
     return CommandContext(
         actor_user_id=user.id,
         actor_type=ActorType.USER,
@@ -37,10 +42,19 @@ def _build_context(user: CurrentUser, request_id: str | None, idempotency_key: s
 
 def _format_deliverable(db: DbSession, deliverable: Deliverable) -> DeliverableRead:
     files = db.query(DeliverableFile).filter_by(deliverable_id=deliverable.id).all()
-    files_read = [
-        DeliverableFileRead(file_id=f.file_id, created_at=f.created_at)
-        for f in files
-    ]
+    files_read = []
+    for item in files:
+        stored = db.get(StoredFile, item.file_id)
+        if stored:
+            files_read.append(
+                DeliverableFileRead(
+                    file_id=item.file_id,
+                    original_name=stored.original_name,
+                    content_type=stored.content_type,
+                    size_bytes=stored.size_bytes,
+                    created_at=item.created_at,
+                )
+            )
     reviews = db.query(MilestoneReview).filter_by(deliverable_id=deliverable.id).all()
     reviews_read = [
         MilestoneReviewRead(
@@ -66,29 +80,37 @@ def _format_deliverable(db: DbSession, deliverable: Deliverable) -> DeliverableR
     )
 
 
-@router.get("/milestones/{milestone_id}/deliverables", response_model=list[DeliverableRead])
+@router.get("/milestones/{milestone_id}/deliverables", response_model=Page[DeliverableRead])
 def list_deliverables(
     milestone_id: int,
     db: DbSession,
     user: CurrentUser,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
 ):
-    deliverables = service.get_deliverables(
+    deliverables = service.get_deliverables_page(
         db,
         milestone_id=milestone_id,
         actor_user_id=user.id,
         is_admin=user.role == UserRole.ADMIN,
+        page=page,
+        size=size,
     )
-    return [_format_deliverable(db, d) for d in deliverables]
+    return {**deliverables, "items": [_format_deliverable(db, d) for d in deliverables["items"]]}
 
 
-@router.post("/milestones/{milestone_id}/deliverables", response_model=DeliverableRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/milestones/{milestone_id}/deliverables",
+    response_model=DeliverableRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def submit_deliverable(
     milestone_id: int,
     payload: DeliverableCreate,
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     deliverable = service.submit_deliverable(

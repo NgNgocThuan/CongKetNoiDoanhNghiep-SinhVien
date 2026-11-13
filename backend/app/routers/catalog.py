@@ -12,6 +12,7 @@ Gồm: /catalog/faculties, majors, industries, job-types, skills (+ /skills/sear
 Đọc: mọi user đăng nhập.  Ghi: AdminUser.
 """
 from fastapi import APIRouter, Query, Response
+from pydantic import BaseModel, Field
 
 from app.core.enums import UserRole
 from app.dependencies import AdminUser, CurrentUser, DbSession, Pagination
@@ -38,6 +39,18 @@ from app.schemas.common import Page
 from app.services import catalog_service
 
 router = APIRouter(prefix="/catalog", tags=["Catalog"])
+
+
+
+class SkillTagInput(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+@router.post("/skill-tags", response_model=SkillRead)
+def resolve_skill_tag(data: SkillTagInput, db: DbSession, _: CurrentUser):
+    from app.services.freelancer_commands import run_command
+    from app.services.skill_tagging import resolve_in_tx
+    return run_command(db, lambda: resolve_in_tx(db, data.name))
 
 
 # ---------------------------------------------------------------- Faculties

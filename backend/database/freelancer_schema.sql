@@ -1,5 +1,660 @@
--- Reference only: generated from Alembic 0001:0002 for MariaDB/MySQL.
--- Apply reviewed Alembic migrations, do not run this file against an existing database.
+CREATE TABLE alembic_version (
+    version_num VARCHAR(32) NOT NULL,
+    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+);
+
+-- Running upgrade  -> 0001
+
+CREATE TABLE ai_request_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    purpose ENUM('PARSE_CV','PARSE_JOB','MATCH_EXPLAIN','OTHER') NOT NULL,
+    ref_type VARCHAR(30),
+    ref_id BIGINT UNSIGNED,
+    provider VARCHAR(50),
+    model_name VARCHAR(100),
+    input_tokens INTEGER UNSIGNED,
+    output_tokens INTEGER UNSIGNED,
+    status ENUM('SUCCESS','FAILED') NOT NULL,
+    error_message VARCHAR(500),
+    latency_ms INTEGER UNSIGNED,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_ai_request_logs PRIMARY KEY (id)
+);
+
+CREATE INDEX idx_ai_logs_ref ON ai_request_logs (ref_type, ref_id);
+
+CREATE INDEX idx_ai_logs_time ON ai_request_logs (created_at);
+
+CREATE TABLE faculties (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(30) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOL NOT NULL DEFAULT 1,
+    CONSTRAINT pk_faculties PRIMARY KEY (id),
+    CONSTRAINT uq_faculties_code UNIQUE (code),
+    CONSTRAINT uq_faculties_name UNIQUE (name)
+);
+
+CREATE TABLE industries (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOL NOT NULL DEFAULT 1,
+    CONSTRAINT pk_industries PRIMARY KEY (id),
+    CONSTRAINT uq_industries_name UNIQUE (name)
+);
+
+CREATE TABLE job_types (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(30) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    is_active BOOL NOT NULL DEFAULT 1,
+    CONSTRAINT pk_job_types PRIMARY KEY (id),
+    CONSTRAINT uq_job_types_code UNIQUE (code)
+);
+
+CREATE TABLE skills (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    category VARCHAR(100),
+    is_active BOOL NOT NULL DEFAULT 1,
+    CONSTRAINT pk_skills PRIMARY KEY (id),
+    CONSTRAINT uq_skills_name UNIQUE (name)
+);
+
+CREATE INDEX idx_skills_category ON skills (category);
+
+CREATE TABLE users (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
+    `role` ENUM('STUDENT','COMPANY','ADMIN') NOT NULL,
+    status ENUM('PENDING_ACTIVATION','PENDING_APPROVAL','ACTIVE','LOCKED') NOT NULL DEFAULT 'PENDING_ACTIVATION',
+    locked_reason VARCHAR(500),
+    last_login_at DATETIME,
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_users PRIMARY KEY (id),
+    CONSTRAINT uq_users_email UNIQUE (email)
+);
+
+CREATE INDEX idx_users_role_status ON users (`role`, status);
+
+CREATE TABLE admins (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    faculty_id BIGINT UNSIGNED,
+    position VARCHAR(100),
+    phone VARCHAR(20),
+    CONSTRAINT pk_admins PRIMARY KEY (id),
+    CONSTRAINT fk_admins_faculty_id_faculties FOREIGN KEY(faculty_id) REFERENCES faculties (id),
+    CONSTRAINT fk_admins_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT uq_admins_user_id UNIQUE (user_id)
+);
+
+CREATE TABLE companies (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    tax_code VARCHAR(20) NOT NULL,
+    industry_id BIGINT UNSIGNED,
+    company_size ENUM('1-10','11-50','51-200','201-500','501-1000','1000+'),
+    address VARCHAR(500),
+    website VARCHAR(255),
+    logo_url VARCHAR(500),
+    description TEXT,
+    tech_stack VARCHAR(500),
+    benefits TEXT,
+    contact_name VARCHAR(255),
+    contact_phone VARCHAR(20),
+    verification_status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+    verified_by BIGINT UNSIGNED,
+    verified_at DATETIME,
+    reject_reason VARCHAR(500),
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_companies PRIMARY KEY (id),
+    CONSTRAINT fk_companies_industry_id_industries FOREIGN KEY(industry_id) REFERENCES industries (id),
+    CONSTRAINT fk_companies_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_companies_verified_by_users FOREIGN KEY(verified_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT uq_companies_tax_code UNIQUE (tax_code),
+    CONSTRAINT uq_companies_user_id UNIQUE (user_id)
+);
+
+CREATE INDEX idx_companies_industry ON companies (industry_id);
+
+CREATE INDEX idx_companies_status ON companies (verification_status);
+
+CREATE TABLE email_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED,
+    recipient_email VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    status ENUM('PENDING','SENT','FAILED') NOT NULL DEFAULT 'PENDING',
+    error_message VARCHAR(500),
+    retry_count TINYINT UNSIGNED NOT NULL DEFAULT '0',
+    ref_type VARCHAR(30),
+    ref_id BIGINT UNSIGNED,
+    sent_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_email_logs PRIMARY KEY (id),
+    CONSTRAINT fk_email_logs_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_email_logs_ref ON email_logs (ref_type, ref_id);
+
+CREATE INDEX idx_email_logs_status ON email_logs (status, created_at);
+
+CREATE INDEX idx_email_logs_user ON email_logs (user_id);
+
+CREATE TABLE import_batches (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    type ENUM('STUDENTS','TERM_STUDENTS','SYNC') NOT NULL,
+    file_name VARCHAR(255),
+    total_rows INTEGER UNSIGNED NOT NULL DEFAULT '0',
+    success_rows INTEGER UNSIGNED NOT NULL DEFAULT '0',
+    failed_rows INTEGER UNSIGNED NOT NULL DEFAULT '0',
+    error_report JSON,
+    imported_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_import_batches PRIMARY KEY (id),
+    CONSTRAINT fk_import_batches_imported_by_users FOREIGN KEY(imported_by) REFERENCES users (id)
+);
+
+CREATE INDEX idx_import_batches_user ON import_batches (imported_by);
+
+CREATE TABLE internship_terms (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    semester VARCHAR(20) NOT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status ENUM('DRAFT','OPEN','ONGOING','CLOSED') NOT NULL DEFAULT 'DRAFT',
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_internship_terms PRIMARY KEY (id),
+    CONSTRAINT ck_internship_terms_dates CHECK (start_date <= end_date),
+    CONSTRAINT fk_internship_terms_created_by_users FOREIGN KEY(created_by) REFERENCES users (id)
+);
+
+CREATE INDEX idx_terms_year ON internship_terms (academic_year, semester);
+
+CREATE TABLE lecturers (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(30),
+    full_name VARCHAR(255) NOT NULL,
+    faculty_id BIGINT UNSIGNED NOT NULL,
+    email VARCHAR(255),
+    phone VARCHAR(20),
+    is_active BOOL NOT NULL DEFAULT '1',
+    CONSTRAINT pk_lecturers PRIMARY KEY (id),
+    CONSTRAINT fk_lecturers_faculty_id_faculties FOREIGN KEY(faculty_id) REFERENCES faculties (id),
+    CONSTRAINT uq_lecturers_code UNIQUE (code)
+);
+
+CREATE INDEX idx_lecturers_faculty ON lecturers (faculty_id);
+
+CREATE TABLE majors (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    faculty_id BIGINT UNSIGNED NOT NULL,
+    code VARCHAR(30) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    is_active BOOL NOT NULL DEFAULT 1,
+    CONSTRAINT pk_majors PRIMARY KEY (id),
+    CONSTRAINT fk_majors_faculty_id_faculties FOREIGN KEY(faculty_id) REFERENCES faculties (id),
+    CONSTRAINT uq_majors_code UNIQUE (code)
+);
+
+CREATE INDEX idx_majors_faculty ON majors (faculty_id);
+
+CREATE TABLE notifications (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    ref_type VARCHAR(30),
+    ref_id BIGINT UNSIGNED,
+    is_read BOOL NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_notifications PRIMARY KEY (id),
+    CONSTRAINT fk_notifications_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_notifications_user ON notifications (user_id, is_read, created_at);
+
+CREATE TABLE password_reset_tokens (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_password_reset_tokens PRIMARY KEY (id),
+    CONSTRAINT fk_password_reset_tokens_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT uq_password_reset_tokens_token_hash UNIQUE (token_hash)
+);
+
+CREATE INDEX idx_prt_user ON password_reset_tokens (user_id);
+
+CREATE TABLE reports (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    reporter_id BIGINT UNSIGNED NOT NULL,
+    target_type ENUM('JOB','COMPANY','STUDENT') NOT NULL,
+    target_id BIGINT UNSIGNED NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    status ENUM('PENDING','RESOLVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+    handled_by BIGINT UNSIGNED,
+    handled_at DATETIME,
+    resolution_note VARCHAR(500),
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_reports PRIMARY KEY (id),
+    CONSTRAINT fk_reports_handled_by_users FOREIGN KEY(handled_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_reports_reporter_id_users FOREIGN KEY(reporter_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_reports_status ON reports (status, created_at);
+
+CREATE INDEX idx_reports_target ON reports (target_type, target_id);
+
+CREATE TABLE skill_aliases (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    skill_id BIGINT UNSIGNED NOT NULL,
+    alias VARCHAR(100) NOT NULL,
+    CONSTRAINT pk_skill_aliases PRIMARY KEY (id),
+    CONSTRAINT fk_skill_aliases_skill_id_skills FOREIGN KEY(skill_id) REFERENCES skills (id) ON DELETE CASCADE,
+    CONSTRAINT uq_skill_aliases_alias UNIQUE (alias)
+);
+
+CREATE INDEX idx_skill_aliases_skill ON skill_aliases (skill_id);
+
+CREATE TABLE company_documents (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    company_id BIGINT UNSIGNED NOT NULL,
+    doc_type ENUM('BUSINESS_LICENSE','TAX_CERTIFICATE','AUTHORIZATION_LETTER','OTHER') NOT NULL,
+    file_url VARCHAR(500) NOT NULL,
+    uploaded_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_company_documents PRIMARY KEY (id),
+    CONSTRAINT fk_company_documents_company_id_companies FOREIGN KEY(company_id) REFERENCES companies (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_cdocs_company ON company_documents (company_id);
+
+CREATE TABLE jobs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    company_id BIGINT UNSIGNED NOT NULL,
+    term_id BIGINT UNSIGNED,
+    title VARCHAR(255) NOT NULL,
+    position VARCHAR(255) NOT NULL,
+    job_type_id BIGINT UNSIGNED NOT NULL,
+    industry_id BIGINT UNSIGNED,
+    description MEDIUMTEXT NOT NULL,
+    requirements MEDIUMTEXT,
+    benefits TEXT,
+    quantity INTEGER UNSIGNED NOT NULL DEFAULT '1',
+    salary_min INTEGER UNSIGNED,
+    salary_max INTEGER UNSIGNED,
+    is_salary_negotiable BOOL NOT NULL DEFAULT 0,
+    location VARCHAR(255),
+    work_mode ENUM('ONSITE','REMOTE','HYBRID') NOT NULL DEFAULT 'ONSITE',
+    min_gpa NUMERIC(3, 2),
+    min_experience_months SMALLINT UNSIGNED,
+    deadline DATE NOT NULL,
+    status ENUM('DRAFT','PENDING_APPROVAL','APPROVED','REJECTED','CLOSED','EXPIRED') NOT NULL DEFAULT 'DRAFT',
+    approved_by BIGINT UNSIGNED,
+    approved_at DATETIME,
+    reject_reason VARCHAR(500),
+    view_count INTEGER UNSIGNED NOT NULL DEFAULT '0',
+    parsed_json JSON,
+    content_hash VARCHAR(64),
+    parsed_at DATETIME,
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_jobs PRIMARY KEY (id),
+    CONSTRAINT ck_jobs_gpa_range CHECK (min_gpa IS NULL OR (min_gpa >= 0 AND min_gpa <= 4)),
+    CONSTRAINT ck_jobs_salary_range CHECK (salary_min IS NULL OR salary_max IS NULL OR salary_min <= salary_max),
+    CONSTRAINT fk_jobs_approved_by_users FOREIGN KEY(approved_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_jobs_company_id_companies FOREIGN KEY(company_id) REFERENCES companies (id) ON DELETE CASCADE,
+    CONSTRAINT fk_jobs_industry_id_industries FOREIGN KEY(industry_id) REFERENCES industries (id),
+    CONSTRAINT fk_jobs_job_type_id_job_types FOREIGN KEY(job_type_id) REFERENCES job_types (id),
+    CONSTRAINT fk_jobs_term_id_internship_terms FOREIGN KEY(term_id) REFERENCES internship_terms (id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_jobs_company ON jobs (company_id);
+
+CREATE INDEX idx_jobs_industry ON jobs (industry_id);
+
+CREATE INDEX idx_jobs_status_deadline ON jobs (status, deadline);
+
+CREATE INDEX idx_jobs_term ON jobs (term_id);
+
+CREATE INDEX idx_jobs_type ON jobs (job_type_id);
+
+CREATE TABLE students (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    student_code VARCHAR(30) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    date_of_birth DATE,
+    class_name VARCHAR(50),
+    faculty_id BIGINT UNSIGNED NOT NULL,
+    major_id BIGINT UNSIGNED NOT NULL,
+    cohort VARCHAR(20) NOT NULL,
+    gpa NUMERIC(3, 2),
+    academic_result VARCHAR(50),
+    phone VARCHAR(20),
+    import_batch_id BIGINT UNSIGNED,
+    synced_at DATETIME,
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_students PRIMARY KEY (id),
+    CONSTRAINT ck_students_gpa_range CHECK (gpa IS NULL OR (gpa >= 0 AND gpa <= 4)),
+    CONSTRAINT fk_students_faculty_id_faculties FOREIGN KEY(faculty_id) REFERENCES faculties (id),
+    CONSTRAINT fk_students_import_batch_id_import_batches FOREIGN KEY(import_batch_id) REFERENCES import_batches (id) ON DELETE SET NULL,
+    CONSTRAINT fk_students_major_id_majors FOREIGN KEY(major_id) REFERENCES majors (id),
+    CONSTRAINT fk_students_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT uq_students_student_code UNIQUE (student_code),
+    CONSTRAINT uq_students_user_id UNIQUE (user_id)
+);
+
+CREATE INDEX idx_students_cohort ON students (cohort);
+
+CREATE INDEX idx_students_faculty_major ON students (faculty_id, major_id);
+
+CREATE TABLE cvs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    type ENUM('UPLOADED','ONLINE') NOT NULL,
+    file_url VARCHAR(500),
+    content_json JSON,
+    is_default BOOL NOT NULL DEFAULT 0,
+    extracted_text MEDIUMTEXT,
+    parsed_json JSON,
+    content_hash VARCHAR(64),
+    parsed_at DATETIME,
+    deleted_at DATETIME,
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_cvs PRIMARY KEY (id),
+    CONSTRAINT fk_cvs_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_cvs_student ON cvs (student_id, is_default);
+
+CREATE TABLE invitations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    company_id BIGINT UNSIGNED NOT NULL,
+    student_id BIGINT UNSIGNED NOT NULL,
+    job_id BIGINT UNSIGNED NOT NULL,
+    message TEXT,
+    status ENUM('PENDING','ACCEPTED','DECLINED','EXPIRED') NOT NULL DEFAULT 'PENDING',
+    responded_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_invitations PRIMARY KEY (id),
+    CONSTRAINT fk_invitations_company_id_companies FOREIGN KEY(company_id) REFERENCES companies (id) ON DELETE CASCADE,
+    CONSTRAINT fk_invitations_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_invitations_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE,
+    CONSTRAINT uq_invitations_job_student UNIQUE (job_id, student_id)
+);
+
+CREATE INDEX idx_invitations_company ON invitations (company_id);
+
+CREATE INDEX idx_invitations_student ON invitations (student_id, status);
+
+CREATE TABLE job_majors (
+    job_id BIGINT UNSIGNED NOT NULL,
+    major_id BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT pk_job_majors PRIMARY KEY (job_id, major_id),
+    CONSTRAINT fk_job_majors_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_job_majors_major_id_majors FOREIGN KEY(major_id) REFERENCES majors (id)
+);
+
+CREATE INDEX idx_job_majors_major ON job_majors (major_id);
+
+CREATE TABLE job_skills (
+    job_id BIGINT UNSIGNED NOT NULL,
+    skill_id BIGINT UNSIGNED NOT NULL,
+    is_required BOOL NOT NULL DEFAULT 1,
+    CONSTRAINT pk_job_skills PRIMARY KEY (job_id, skill_id),
+    CONSTRAINT fk_job_skills_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_job_skills_skill_id_skills FOREIGN KEY(skill_id) REFERENCES skills (id)
+);
+
+CREATE INDEX idx_job_skills_skill ON job_skills (skill_id);
+
+CREATE TABLE job_views (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    job_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED,
+    viewed_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_job_views PRIMARY KEY (id),
+    CONSTRAINT fk_job_views_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_job_views_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_job_views_job_time ON job_views (job_id, viewed_at);
+
+CREATE TABLE saved_jobs (
+    student_id BIGINT UNSIGNED NOT NULL,
+    job_id BIGINT UNSIGNED NOT NULL,
+    saved_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_saved_jobs PRIMARY KEY (student_id, job_id),
+    CONSTRAINT fk_saved_jobs_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_saved_jobs_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_saved_jobs_job ON saved_jobs (job_id);
+
+CREATE TABLE student_achievements (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    type ENUM('RESEARCH','ACHIEVEMENT','OTHER') NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    achieved_at DATE,
+    import_batch_id BIGINT UNSIGNED,
+    CONSTRAINT pk_student_achievements PRIMARY KEY (id),
+    CONSTRAINT fk_student_achievements_import_batch_id_import_batches FOREIGN KEY(import_batch_id) REFERENCES import_batches (id) ON DELETE SET NULL,
+    CONSTRAINT fk_student_achievements_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_sach_student ON student_achievements (student_id);
+
+CREATE TABLE student_certificates (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    issuer VARCHAR(255),
+    issued_at DATE,
+    expires_at DATE,
+    credential_url VARCHAR(500),
+    source ENUM('SCHOOL','SELF') NOT NULL DEFAULT 'SELF',
+    is_verified BOOL NOT NULL DEFAULT 0,
+    verified_by BIGINT UNSIGNED,
+    verified_at DATETIME,
+    CONSTRAINT pk_student_certificates PRIMARY KEY (id),
+    CONSTRAINT fk_student_certificates_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE,
+    CONSTRAINT fk_student_certificates_verified_by_users FOREIGN KEY(verified_by) REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_scert_student ON student_certificates (student_id);
+
+CREATE TABLE student_experiences (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+    position VARCHAR(255) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    description TEXT,
+    CONSTRAINT pk_student_experiences PRIMARY KEY (id),
+    CONSTRAINT fk_student_experiences_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_sexp_student ON student_experiences (student_id);
+
+CREATE TABLE student_profiles (
+    student_id BIGINT UNSIGNED NOT NULL,
+    avatar_url VARCHAR(500),
+    bio TEXT,
+    career_goal TEXT,
+    contact_email VARCHAR(255),
+    contact_phone VARCHAR(20),
+    address VARCHAR(500),
+    linkedin_url VARCHAR(500),
+    github_url VARCHAR(500),
+    is_open_to_work BOOL NOT NULL DEFAULT 0,
+    show_gpa BOOL NOT NULL DEFAULT 0,
+    show_contact BOOL NOT NULL DEFAULT 0,
+    show_achievements BOOL NOT NULL DEFAULT 1,
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_student_profiles PRIMARY KEY (student_id),
+    CONSTRAINT fk_student_profiles_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE TABLE student_projects (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    `role` VARCHAR(255),
+    description TEXT,
+    tech_stack VARCHAR(500),
+    project_url VARCHAR(500),
+    start_date DATE,
+    end_date DATE,
+    CONSTRAINT pk_student_projects PRIMARY KEY (id),
+    CONSTRAINT fk_student_projects_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_sproj_student ON student_projects (student_id);
+
+CREATE TABLE student_skills (
+    student_id BIGINT UNSIGNED NOT NULL,
+    skill_id BIGINT UNSIGNED NOT NULL,
+    level ENUM('BEGINNER','INTERMEDIATE','ADVANCED','EXPERT') NOT NULL DEFAULT 'BEGINNER',
+    source ENUM('SELF','CV_AI','SCHOOL') NOT NULL DEFAULT 'SELF',
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_student_skills PRIMARY KEY (student_id, skill_id),
+    CONSTRAINT fk_student_skills_skill_id_skills FOREIGN KEY(skill_id) REFERENCES skills (id),
+    CONSTRAINT fk_student_skills_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_sskills_skill ON student_skills (skill_id);
+
+CREATE TABLE term_students (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    term_id BIGINT UNSIGNED NOT NULL,
+    student_id BIGINT UNSIGNED NOT NULL,
+    lecturer_id BIGINT UNSIGNED,
+    created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_term_students PRIMARY KEY (id),
+    CONSTRAINT fk_term_students_lecturer_id_lecturers FOREIGN KEY(lecturer_id) REFERENCES lecturers (id) ON DELETE SET NULL,
+    CONSTRAINT fk_term_students_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE,
+    CONSTRAINT fk_term_students_term_id_internship_terms FOREIGN KEY(term_id) REFERENCES internship_terms (id) ON DELETE CASCADE,
+    CONSTRAINT uq_term_students UNIQUE (term_id, student_id)
+);
+
+CREATE INDEX idx_term_students_lecturer ON term_students (lecturer_id);
+
+CREATE INDEX idx_term_students_student ON term_students (student_id);
+
+CREATE TABLE applications (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    job_id BIGINT UNSIGNED NOT NULL,
+    cv_id BIGINT UNSIGNED NOT NULL,
+    cv_snapshot_url VARCHAR(500),
+    cover_letter TEXT,
+    invitation_id BIGINT UNSIGNED,
+    current_status ENUM('APPLIED','SCREENING','SHORTLISTED','INTERVIEW','OFFER','HIRED','REJECTED','WITHDRAWN') NOT NULL DEFAULT 'APPLIED',
+    applied_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_applications PRIMARY KEY (id),
+    CONSTRAINT fk_applications_cv_id_cvs FOREIGN KEY(cv_id) REFERENCES cvs (id),
+    CONSTRAINT fk_applications_invitation_id_invitations FOREIGN KEY(invitation_id) REFERENCES invitations (id) ON DELETE SET NULL,
+    CONSTRAINT fk_applications_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_applications_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE,
+    CONSTRAINT uq_applications_student_job UNIQUE (student_id, job_id)
+);
+
+CREATE INDEX idx_applications_cv ON applications (cv_id);
+
+CREATE INDEX idx_applications_job_status ON applications (job_id, current_status);
+
+CREATE TABLE matching_results (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    student_id BIGINT UNSIGNED NOT NULL,
+    job_id BIGINT UNSIGNED NOT NULL,
+    cv_id BIGINT UNSIGNED,
+    passed_rules BOOL NOT NULL,
+    score NUMERIC(5, 2) NOT NULL,
+    skill_score NUMERIC(5, 2),
+    experience_score NUMERIC(5, 2),
+    semantic_score NUMERIC(5, 2),
+    matched_skills JSON,
+    missing_skills JSON,
+    explanation TEXT,
+    input_hash VARCHAR(64) NOT NULL,
+    model_name VARCHAR(100),
+    algo_version VARCHAR(20),
+    computed_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_matching_results PRIMARY KEY (id),
+    CONSTRAINT ck_matching_results_score_range CHECK (score >= 0 AND score <= 100),
+    CONSTRAINT fk_matching_results_cv_id_cvs FOREIGN KEY(cv_id) REFERENCES cvs (id) ON DELETE SET NULL,
+    CONSTRAINT fk_matching_results_job_id_jobs FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_matching_results_student_id_students FOREIGN KEY(student_id) REFERENCES students (id) ON DELETE CASCADE,
+    CONSTRAINT uq_matching_student_job UNIQUE (student_id, job_id)
+);
+
+CREATE INDEX idx_matching_job_score ON matching_results (job_id, score);
+
+CREATE INDEX idx_matching_student_score ON matching_results (student_id, score);
+
+CREATE TABLE application_status_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    application_id BIGINT UNSIGNED NOT NULL,
+    old_status VARCHAR(20),
+    new_status VARCHAR(20) NOT NULL,
+    changed_by BIGINT UNSIGNED,
+    note VARCHAR(500),
+    changed_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    CONSTRAINT pk_application_status_logs PRIMARY KEY (id),
+    CONSTRAINT fk_application_status_logs_application_id_applications FOREIGN KEY(application_id) REFERENCES applications (id) ON DELETE CASCADE,
+    CONSTRAINT fk_application_status_logs_changed_by_users FOREIGN KEY(changed_by) REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_asl_application ON application_status_logs (application_id, changed_at);
+
+CREATE TABLE internship_results (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    term_student_id BIGINT UNSIGNED NOT NULL,
+    application_id BIGINT UNSIGNED,
+    company_id BIGINT UNSIGNED,
+    company_evaluation TEXT,
+    company_score NUMERIC(4, 2),
+    evaluated_at DATETIME,
+    lecturer_comment TEXT,
+    lecturer_score NUMERIC(4, 2),
+    result ENUM('PENDING','PASSED','FAILED') NOT NULL DEFAULT 'PENDING',
+    confirmed_by BIGINT UNSIGNED,
+    confirmed_at DATETIME,
+    CONSTRAINT pk_internship_results PRIMARY KEY (id),
+    CONSTRAINT fk_internship_results_application_id_applications FOREIGN KEY(application_id) REFERENCES applications (id) ON DELETE SET NULL,
+    CONSTRAINT fk_internship_results_company_id_companies FOREIGN KEY(company_id) REFERENCES companies (id) ON DELETE SET NULL,
+    CONSTRAINT fk_internship_results_confirmed_by_users FOREIGN KEY(confirmed_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_internship_results_term_student_id_term_students FOREIGN KEY(term_student_id) REFERENCES term_students (id) ON DELETE CASCADE,
+    CONSTRAINT uq_internship_results_term_student_id UNIQUE (term_student_id)
+);
+
+CREATE INDEX idx_ir_company ON internship_results (company_id);
+
+ALTER TABLE jobs ADD FULLTEXT INDEX ft_jobs_search (title, position, description);
+
+INSERT INTO alembic_version (version_num) VALUES ('0001');
+
 -- Running upgrade 0001 -> 0002
 
 CREATE TABLE daily_limit_buckets (
@@ -1384,3 +2039,127 @@ CREATE TRIGGER trg_audit_logs_update_blocked BEFORE UPDATE ON audit_logs FOR EAC
 CREATE TRIGGER trg_audit_logs_delete_blocked BEFORE DELETE ON audit_logs FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'append-only table';
 
 UPDATE alembic_version SET version_num='0002' WHERE alembic_version.version_num = '0001';
+
+-- Running upgrade 0002 -> 0003
+
+CREATE TABLE freelancer_policies (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    policy_key VARCHAR(50) COLLATE utf8mb4_bin NOT NULL,
+    revision INTEGER NOT NULL,
+    values_json JSON NOT NULL,
+    updated_by BIGINT UNSIGNED,
+    updated_at DATETIME(6) NOT NULL DEFAULT (now()),
+    CONSTRAINT pk_freelancer_policies PRIMARY KEY (id),
+    CONSTRAINT ck_freelancer_policies_revision_positive CHECK (revision > 0),
+    CONSTRAINT uq_freelancer_policies_policy_key UNIQUE (policy_key),
+    CONSTRAINT fk_freelancer_policies_updated_by_users FOREIGN KEY(updated_by) REFERENCES users (id) ON DELETE RESTRICT
+);
+
+CREATE TABLE otp_rate_buckets (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    scope_hash VARCHAR(64) COLLATE utf8mb4_bin NOT NULL,
+    window_started_at DATETIME(6) NOT NULL,
+    count INTEGER NOT NULL,
+    CONSTRAINT pk_otp_rate_buckets PRIMARY KEY (id),
+    CONSTRAINT ck_otp_rate_buckets_count_nonnegative CHECK (count >= 0),
+    CONSTRAINT uq_otp_rate_buckets_scope_hash UNIQUE (scope_hash)
+);
+
+CREATE TABLE dispute_withdrawals (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    dispute_id BIGINT UNSIGNED NOT NULL,
+    requested_by BIGINT UNSIGNED NOT NULL,
+    reason TEXT NOT NULL,
+    terms_hash VARCHAR(64) COLLATE utf8mb4_bin NOT NULL,
+    confirmed_by BIGINT UNSIGNED,
+    created_at DATETIME(6) NOT NULL,
+    confirmed_at DATETIME(6),
+    CONSTRAINT pk_dispute_withdrawals PRIMARY KEY (id),
+    CONSTRAINT ck_dispute_withdrawals_distinct_confirmers CHECK (confirmed_by IS NULL OR confirmed_by <> requested_by),
+    CONSTRAINT uq_dispute_withdrawals_dispute_id UNIQUE (dispute_id),
+    CONSTRAINT fk_dispute_withdrawals_dispute_id_disputes FOREIGN KEY(dispute_id) REFERENCES disputes (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_dispute_withdrawals_requested_by_users FOREIGN KEY(requested_by) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_dispute_withdrawals_confirmed_by_users FOREIGN KEY(confirmed_by) REFERENCES users (id) ON DELETE RESTRICT
+);
+
+CREATE TABLE project_expansions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    project_id BIGINT UNSIGNED NOT NULL,
+    requested_by BIGINT UNSIGNED NOT NULL,
+    request_key VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
+    budget_amount BIGINT NOT NULL,
+    max_students INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    reviewed_by BIGINT UNSIGNED,
+    review_reason TEXT,
+    reviewed_at DATETIME(6),
+    created_at DATETIME(6) NOT NULL DEFAULT (now()),
+    CONSTRAINT pk_project_expansions PRIMARY KEY (id),
+    CONSTRAINT uq_project_expansions_project_id_request_key UNIQUE (project_id, request_key),
+    CONSTRAINT ck_project_expansions_positive_ceilings CHECK (budget_amount > 0 AND max_students > 0),
+    CONSTRAINT ck_project_expansions_status_values CHECK (status IN ('PENDING','APPROVED','REJECTED')),
+    CONSTRAINT fk_project_expansions_project_id_freelance_projects FOREIGN KEY(project_id) REFERENCES freelance_projects (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_project_expansions_requested_by_users FOREIGN KEY(requested_by) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_project_expansions_reviewed_by_users FOREIGN KEY(reviewed_by) REFERENCES users (id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_project_expansions_project_id ON project_expansions (project_id);
+
+CREATE INDEX ix_project_expansions_requested_by ON project_expansions (requested_by);
+
+CREATE INDEX ix_project_expansions_reviewed_by ON project_expansions (reviewed_by);
+
+CREATE INDEX ix_freelancer_policies_updated_by ON freelancer_policies (updated_by);
+
+CREATE INDEX ix_dispute_withdrawals_requested_by ON dispute_withdrawals (requested_by);
+
+CREATE INDEX ix_dispute_withdrawals_confirmed_by ON dispute_withdrawals (confirmed_by);
+
+UPDATE alembic_version SET version_num='0003' WHERE alembic_version.version_num = '0002';
+
+-- Running upgrade 0003 -> 0004
+
+CREATE TABLE finance_counters (
+    name VARCHAR(50) NOT NULL,
+    next_value BIGINT NOT NULL,
+    CONSTRAINT pk_finance_counters PRIMARY KEY (name)
+);
+
+INSERT INTO finance_counters (name, next_value) VALUES ('writer', 1000000000);
+
+UPDATE finance_counters SET next_value = (SELECT CASE WHEN MAX(order_code) >= 1000000000 THEN MAX(order_code) + 1 ELSE 1000000000 END FROM payment_orders) WHERE name='writer';
+
+CREATE TABLE treasury_entries (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    external_reference VARCHAR(150) COLLATE utf8mb4_bin NOT NULL,
+    kind VARCHAR(30) NOT NULL,
+    amount BIGINT NOT NULL,
+    evidence_file_id BIGINT UNSIGNED NOT NULL,
+    proposed_by BIGINT UNSIGNED NOT NULL,
+    approved_by BIGINT UNSIGNED,
+    reason TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PROPOSED',
+    journal_id BIGINT UNSIGNED,
+    created_at DATETIME(6) NOT NULL DEFAULT (now()),
+    posted_at DATETIME(6),
+    CONSTRAINT pk_treasury_entries PRIMARY KEY (id),
+    CONSTRAINT ck_treasury_entries_positive_amount CHECK (amount > 0),
+    CONSTRAINT ck_treasury_entries_valid_kind CHECK (kind IN ('TRANSFER_TO_PAYOUT','EQUITY_BANK','EQUITY_PAYOUT','FEE_BANK','FEE_PAYOUT')),
+    CONSTRAINT ck_treasury_entries_valid_status CHECK (status IN ('PROPOSED','POSTED','REJECTED')),
+    CONSTRAINT ck_treasury_entries_distinct_approvers CHECK (approved_by IS NULL OR approved_by <> proposed_by),
+    CONSTRAINT uq_treasury_entries_external_reference UNIQUE (external_reference),
+    CONSTRAINT fk_treasury_entries_evidence_file_id_stored_files FOREIGN KEY(evidence_file_id) REFERENCES stored_files (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_treasury_entries_proposed_by_users FOREIGN KEY(proposed_by) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_treasury_entries_approved_by_users FOREIGN KEY(approved_by) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT uq_treasury_entries_journal_id UNIQUE (journal_id),
+    CONSTRAINT fk_treasury_entries_journal_id_ledger_journals FOREIGN KEY(journal_id) REFERENCES ledger_journals (id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_treasury_entries_evidence_file_id ON treasury_entries (evidence_file_id);
+
+CREATE INDEX ix_treasury_entries_proposed_by ON treasury_entries (proposed_by);
+
+CREATE INDEX ix_treasury_entries_approved_by ON treasury_entries (approved_by);
+
+UPDATE alembic_version SET version_num='0004' WHERE alembic_version.version_num = '0003';

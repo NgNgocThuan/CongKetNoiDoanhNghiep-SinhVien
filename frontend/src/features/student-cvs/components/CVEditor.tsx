@@ -1,4 +1,6 @@
 import { useStudentAction } from '@/features/student-jobs/useStudentAction'
+import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,7 +18,6 @@ import type { CV } from '../types'
 const schema = z.object({
   title: z.string().trim().min(1, 'Nhập tiêu đề CV.').max(255),
   summary: z.string(),
-  skills: z.string(),
   experience: z.string(),
   projects: z.string(),
   career_goal: z.string(),
@@ -40,7 +41,9 @@ export function CVEditor({ cv, onDone }: { cv?: CV; onDone: () => void }) {
   const profile = useQuery({
     queryKey: ['student-profile'],
     queryFn: ({ signal }) => profileApi.get(signal),
+    enabled: cv?.type !== 'UPLOADED',
   })
+  if (cv?.type === 'UPLOADED') return <UploadedCvTitle cv={cv} onDone={onDone} />
   return (
     <>
       <QueryState query={profile} />
@@ -49,6 +52,14 @@ export function CVEditor({ cv, onDone }: { cv?: CV; onDone: () => void }) {
       )}
     </>
   )
+}
+function UploadedCvTitle({ cv, onDone }: { cv: CV; onDone: () => void }) {
+  const [title, setTitle] = useState(cv.title)
+  const action = useStudentAction(['student-cvs'])
+  return <form className="student-form" onSubmit={async event => { event.preventDefault(); if (await action.run(() => cvsApi.update(cv.id, { title: title.trim() }))) onDone() }}>
+    <label>Tiêu đề CV<input required maxLength={255} value={title} onChange={event => setTitle(event.target.value)} /></label>
+    <Feedback {...action} /><Button type="submit" pending={action.pending}>Lưu tiêu đề</Button>
+  </form>
 }
 function CVForm({
   cv,
@@ -92,7 +103,6 @@ function CVForm({
     defaultValues: {
       title: cv?.title || '',
       summary: text(defaults.summary),
-      skills: text(defaults.skills),
       experience: text(defaults.experience),
       projects: text(defaults.projects),
       career_goal: text(defaults.career_goal),
@@ -114,10 +124,6 @@ function CVForm({
         const content_json = {
           ...additional,
           ...fields,
-          skills: values.skills
-            .split('\n')
-            .map((value) => value.trim())
-            .filter(Boolean),
         }
         if (
           await action.run(() =>
@@ -161,7 +167,6 @@ function CVForm({
         [
           ['summary', 'Giới thiệu'],
           ['career_goal', 'Mục tiêu nghề nghiệp'],
-          ['skills', 'Kỹ năng (mỗi dòng một kỹ năng)'],
           ['experience', 'Kinh nghiệm'],
           ['projects', 'Dự án'],
         ] as const
@@ -171,6 +176,11 @@ function CVForm({
           <textarea {...form.register(key)} />
         </label>
       ))}
+      <section className="cv-skills-confirmation">
+        <h3>Kỹ năng từ hồ sơ</h3>
+        <div className="resume-skill-list">{self.skills.length ? self.skills.map(skill => <span key={skill.skill_id}>{skill.name}</span>) : <p>Chưa có kỹ năng trong hồ sơ.</p>}</div>
+        <p>CV online tự đồng bộ danh sách này. <Link to="/student/profile">Quản lý kỹ năng trong hồ sơ →</Link></p>
+      </section>
       {(
         [
           ['contact_email', 'Email liên hệ'],

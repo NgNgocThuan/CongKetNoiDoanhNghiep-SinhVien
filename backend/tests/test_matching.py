@@ -129,7 +129,7 @@ def test_matching_recommendations_and_background(client, db, make_user, auth_hea
     )
 
 
-def test_matching_term_visibility(client, db, make_user, auth_headers, monkeypatch):
+def test_matching_ignores_legacy_term_membership(client, db, make_user, auth_headers, monkeypatch):
     from app.models import InternshipTerm, TermStudent
     from app.utils.datetime_utils import utcnow
 
@@ -148,8 +148,8 @@ def test_matching_term_visibility(client, db, make_user, auth_headers, monkeypat
     d.job.term_id = term.id
     db.commit()
     student_headers = auth_headers(d.student_user)
-    assert client.get(f"{BASE}/jobs/{d.job.id}/score", headers=student_headers).status_code == 404
-    assert client.get(f"{BASE}/jobs/recommended", headers=student_headers).json()["total"] == 0
+    assert client.get(f"{BASE}/jobs/{d.job.id}/score", headers=student_headers).status_code == 200
+    assert client.get(f"{BASE}/jobs/recommended", headers=student_headers).json()["total"] == 1
     db.add(TermStudent(term_id=term.id, student_id=d.student.id))
     db.commit()
     assert client.get(f"{BASE}/jobs/{d.job.id}/score", headers=student_headers).status_code == 200
@@ -166,3 +166,42 @@ def test_failed_hard_rules_do_not_call_ai(db, make_user, monkeypatch):
     assert not service.get_or_compute_match(db, d.student, d.job).passed_rules
     cv_parse.assert_not_called()
     job_parse.assert_not_called()
+
+
+def test_recommendations_exclude_no_skill_evidence_and_refresh_old_cache(client, db, make_user, auth_headers, monkeypatch):
+    from app.ai.matching_engine import ALGO_VERSION
+    from app.models import MatchingResult, Skill, StudentSkill
+
+    d = domain(db, make_user)
+    monkeypatch.setattr(settings, "AI_API_KEY", "")
+    student_headers = auth_headers(d.student_user)
+    url = f"{BASE}/jobs/recommended"
+    assert client.get(url, headers=student_headers).json()["total"] == 1
+    cached = db.query(MatchingResult).filter_by(student_id=d.student.id, job_id=d.job.id).one()
+    old_hash = cached.input_hash
+    cached.algo_version = "1.0"
+    cached.input_hash = "obsolete"
+    cached.score = 70
+    db.commit()
+    assert client.get(url, headers=student_headers).status_code == 200
+    db.refresh(cached)
+    assert cached.algo_version == ALGO_VERSION
+    assert cached.input_hash == old_hash
+
+    db.query(StudentSkill).filter_by(student_id=d.student.id).delete()
+    other = Skill(name="Accounting")
+    db.add(other)
+    db.flush()
+    db.add(StudentSkill(student_id=d.student.id, skill_id=other.id))
+    db.commit()
+    db.expire_all()
+    assert client.get(url, headers=student_headers).json()["total"] == 0
+    score = client.get(f"{BASE}/jobs/{d.job.id}/score", headers=student_headers).json()
+    assert float(score["score"]) == 0
+    assert score["matched_skills"] == []
+    assert client.get(f"{BASE}/jobs/{d.job.id}/candidates", headers=auth_headers(d.company_user)).json()["total"] == 0
+
+    d.job.skills.clear()
+    db.commit()
+    db.expire_all()
+    assert client.get(url, headers=student_headers).json()["total"] == 0

@@ -32,6 +32,11 @@ class User(TimestampMixin, Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     phone: Mapped[Optional[str]] = mapped_column(String(20))
     email_verified_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    registration_terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    registration_terms_version: Mapped[Optional[str]] = mapped_column(String(32))
+    escrow_terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    escrow_terms_version: Mapped[Optional[str]] = mapped_column(String(32))
+    # Legacy timestamp only; SMS verification and phone-based eligibility have been retired.
     phone_verified_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
 
     # Mỗi user thuộc đúng một loại hồ sơ, tùy role

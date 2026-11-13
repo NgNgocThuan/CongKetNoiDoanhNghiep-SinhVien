@@ -1,4 +1,5 @@
 """Tests for Group C: Tickets C3, C4, C5 (Milestones, Deliverables, WorkPort, Acceptance)."""
+
 from datetime import datetime
 
 import pytest
@@ -60,7 +61,9 @@ from tests.freelancer.fakes import FakeFinancePort
 
 @pytest.fixture
 def db_session():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
 
     @event.listens_for(engine, "connect")
     def foreign_keys(connection, _):
@@ -75,9 +78,20 @@ def db_session():
 @pytest.fixture
 def active_contract_fixtures(db_session):
     db = db_session
-    client_user = User(id=1, email="client@test.com", role=UserRole.CLIENT, status=UserStatus.ACTIVE)
-    student_user = User(id=2, email="student@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
-    outsider_user = User(id=3, email="outsider@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE)
+    client_user = User(
+        id=1,
+        email="client@test.com",
+        role=UserRole.CLIENT,
+        status=UserStatus.ACTIVE,
+        email_verified_at=datetime(2026, 1, 1),
+        phone_verified_at=datetime(2026, 1, 1),
+    )
+    student_user = User(
+        id=2, email="student@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE
+    )
+    outsider_user = User(
+        id=3, email="outsider@test.com", role=UserRole.STUDENT, status=UserStatus.ACTIVE
+    )
     db.add_all([client_user, student_user, outsider_user])
     db.flush()
 
@@ -88,8 +102,24 @@ def active_contract_fixtures(db_session):
     db.add(major)
     db.flush()
 
-    student = Student(id=10, user_id=student_user.id, student_code="SV001", full_name="Student", faculty_id=faculty.id, major_id=major.id, cohort="2026")
-    outsider_student = Student(id=20, user_id=outsider_user.id, student_code="SV002", full_name="Outsider", faculty_id=faculty.id, major_id=major.id, cohort="2026")
+    student = Student(
+        id=10,
+        user_id=student_user.id,
+        student_code="SV001",
+        full_name="Student",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
+    outsider_student = Student(
+        id=20,
+        user_id=outsider_user.id,
+        student_code="SV002",
+        full_name="Outsider",
+        faculty_id=faculty.id,
+        major_id=major.id,
+        cohort="2026",
+    )
     db.add_all([student, outsider_student])
     db.flush()
 
@@ -132,12 +162,14 @@ def active_contract_fixtures(db_session):
     db.add(contract)
     db.flush()
 
-    db.add(ProjectContractBudget(
-        project_id=project.id,
-        contract_id=contract.id,
-        allocated_amount=3000000,
-        status=ContractBudgetStatus.COMMITTED,
-    ))
+    db.add(
+        ProjectContractBudget(
+            project_id=project.id,
+            contract_id=contract.id,
+            allocated_amount=3000000,
+            status=ContractBudgetStatus.COMMITTED,
+        )
+    )
     db.flush()
 
     # Create Effective Version with 2 Milestones
@@ -217,7 +249,9 @@ def active_contract_fixtures(db_session):
     }
 
 
-def make_ctx(actor_user_id: int | None, actor_type=ActorType.USER, now_utc=None, key=None, job_key=None) -> CommandContext:
+def make_ctx(
+    actor_user_id: int | None, actor_type=ActorType.USER, now_utc=None, key=None, job_key=None
+) -> CommandContext:
     return CommandContext(
         actor_user_id=actor_user_id,
         actor_type=actor_type,
@@ -232,6 +266,7 @@ def make_ctx(actor_user_id: int | None, actor_type=ActorType.USER, now_utc=None,
 # Ticket C3 Tests: Milestone Start Guards
 # =============================================================================
 
+
 def test_c3_start_milestone_success_per_milestone(db_session, active_contract_fixtures):
     f = active_contract_fixtures
     service = MilestoneService()
@@ -239,7 +274,10 @@ def test_c3_start_milestone_success_per_milestone(db_session, active_contract_fi
     fake_finance = FakeFinancePort(funded=True)
 
     ms = service.start_milestone_in_tx(
-        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=fake_finance,
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=fake_finance,
     )
     assert ms.status == MilestoneStatus.IN_PROGRESS
     assert ms.started_at is not None
@@ -258,7 +296,10 @@ def test_c3_start_milestone_full_funding_policy_guard(db_session, active_contrac
     # ms2 is NOT_FUNDED -> should block starting ms1 with MILESTONE_NOT_FUNDED
     with pytest.raises(ConflictError) as exc:
         service.start_milestone_in_tx(
-            db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=fake_finance,
+            db_session,
+            ctx=ctx_student,
+            milestone_id=f["ms1"].id,
+            finance_port=fake_finance,
         )
     assert exc.value.code == "MILESTONE_NOT_FUNDED"
     assert "Full contract funding required" in exc.value.message
@@ -283,7 +324,10 @@ def test_c3_start_milestone_hold_and_dispute_guard(db_session, active_contract_f
 
     with pytest.raises(ConflictError) as exc:
         service.start_milestone_in_tx(
-            db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=fake_finance,
+            db_session,
+            ctx=ctx_student,
+            milestone_id=f["ms1"].id,
+            finance_port=fake_finance,
         )
     assert exc.value.code == "FUNDS_ON_HOLD"
 
@@ -308,7 +352,10 @@ def test_c3_start_milestone_hold_and_dispute_guard(db_session, active_contract_f
 
     with pytest.raises(ConflictError) as exc:
         service.start_milestone_in_tx(
-            db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=fake_finance,
+            db_session,
+            ctx=ctx_student,
+            milestone_id=f["ms1"].id,
+            finance_port=fake_finance,
         )
     assert exc.value.code == "FUNDS_ON_HOLD"
 
@@ -321,14 +368,20 @@ def test_c3_start_milestone_permissions_zero_leak(db_session, active_contract_fi
     # Client tries to start -> 403 Forbidden
     with pytest.raises(ForbiddenError) as exc:
         service.start_milestone_in_tx(
-            db_session, ctx=make_ctx(f["client"].id), milestone_id=f["ms1"].id, finance_port=fake_finance,
+            db_session,
+            ctx=make_ctx(f["client"].id),
+            milestone_id=f["ms1"].id,
+            finance_port=fake_finance,
         )
     assert exc.value.code == "FORBIDDEN"
 
     # Outsider tries to start -> 404 NOT_FOUND
     with pytest.raises(NotFoundError) as exc:
         service.start_milestone_in_tx(
-            db_session, ctx=make_ctx(f["outsider"].id), milestone_id=f["ms1"].id, finance_port=fake_finance,
+            db_session,
+            ctx=make_ctx(f["outsider"].id),
+            milestone_id=f["ms1"].id,
+            finance_port=fake_finance,
         )
     assert exc.value.code == "NOT_FOUND"
 
@@ -336,6 +389,7 @@ def test_c3_start_milestone_permissions_zero_leak(db_session, active_contract_fi
 # =============================================================================
 # Ticket C4 Tests: Deliverables, Files, Revisions
 # =============================================================================
+
 
 def test_c4_submit_deliverable_with_files(db_session, active_contract_fixtures):
     f = active_contract_fixtures
@@ -345,7 +399,10 @@ def test_c4_submit_deliverable_with_files(db_session, active_contract_fixtures):
 
     # Start milestone
     ms_service.start_milestone_in_tx(
-        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True),
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
     )
 
     # Create stored files
@@ -377,19 +434,31 @@ def test_c4_submit_deliverable_with_files(db_session, active_contract_fixtures):
     # Attempt submit with uncleaned file -> 409 VALIDATION_ERROR
     with pytest.raises(ConflictError) as exc:
         del_service.submit_deliverable_in_tx(
-            db_session, ctx=ctx_student, milestone_id=f["ms1"].id, file_ids=[dirty_file.id], note="Here is virus",
+            db_session,
+            ctx=ctx_student,
+            milestone_id=f["ms1"].id,
+            file_ids=[dirty_file.id],
+            note="Here is virus",
         )
     assert exc.value.code == "VALIDATION_ERROR"
 
     # Submit successfully with clean file
     deliv = del_service.submit_deliverable_in_tx(
-        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, file_ids=[clean_file.id], note="First release",
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        file_ids=[clean_file.id],
+        note="First release",
     )
     assert deliv.submission_no == 1
     assert deliv.submitted_by == f["student"].id
 
     # Verify deliverable file mapped
-    df = db_session.query(DeliverableFile).filter_by(deliverable_id=deliv.id, file_id=clean_file.id).first()
+    df = (
+        db_session.query(DeliverableFile)
+        .filter_by(deliverable_id=deliv.id, file_id=clean_file.id)
+        .first()
+    )
     assert df is not None
 
     # Verify milestone transitioned to SUBMITTED
@@ -398,7 +467,11 @@ def test_c4_submit_deliverable_with_files(db_session, active_contract_fixtures):
     assert f["ms1"].review_deadline is not None
 
     # Verify scheduled job for auto-accept
-    job = db_session.query(ScheduledJob).filter_by(job_key=f"milestone.auto_accept:{f['ms1'].id}:1").first()
+    job = (
+        db_session.query(ScheduledJob)
+        .filter_by(job_key=f"milestone.auto_accept:{f['ms1'].id}:1")
+        .first()
+    )
     assert job is not None
     assert job.status == ScheduledJobStatus.PENDING
 
@@ -411,12 +484,23 @@ def test_c4_request_revision_flow_and_limit(db_session, active_contract_fixtures
     ctx_client = make_ctx(f["client"].id)
 
     # Start and submit 1st deliverable
-    ms_service.start_milestone_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True))
-    d1 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 1")
+    ms_service.start_milestone_in_tx(
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
+    )
+    d1 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 1"
+    )
 
     # Client requests revision 1
     rev1 = del_service.request_revision_in_tx(
-        db_session, ctx=ctx_client, milestone_id=f["ms1"].id, deliverable_id=d1.id, reason="Button is wrong color",
+        db_session,
+        ctx=ctx_client,
+        milestone_id=f["ms1"].id,
+        deliverable_id=d1.id,
+        reason="Button is wrong color",
     )
     assert rev1.action == MilestoneReviewAction.REQUEST_REVISION
     db_session.refresh(f["ms1"])
@@ -425,25 +509,37 @@ def test_c4_request_revision_flow_and_limit(db_session, active_contract_fixtures
     assert f["ms1"].review_deadline is None
 
     # Student submits 2nd deliverable
-    d2 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 2")
+    d2 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 2"
+    )
     assert d2.submission_no == 2
     db_session.refresh(f["ms1"])
     assert f["ms1"].status == MilestoneStatus.SUBMITTED
 
     # Client requests revision 2 (max_revision_count is 2 on version)
     del_service.request_revision_in_tx(
-        db_session, ctx=ctx_client, milestone_id=f["ms1"].id, deliverable_id=d2.id, reason="Font too small",
+        db_session,
+        ctx=ctx_client,
+        milestone_id=f["ms1"].id,
+        deliverable_id=d2.id,
+        reason="Font too small",
     )
     db_session.refresh(f["ms1"])
     assert f["ms1"].revision_count == 2
 
     # Student submits 3rd deliverable
-    d3 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 3")
+    d3 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 3"
+    )
 
     # Client tries to request revision 3 -> Exceeds max revisions -> 409 REVISION_LIMIT_EXCEEDED
     with pytest.raises(ConflictError) as exc:
         del_service.request_revision_in_tx(
-            db_session, ctx=ctx_client, milestone_id=f["ms1"].id, deliverable_id=d3.id, reason="Another fix",
+            db_session,
+            ctx=ctx_client,
+            milestone_id=f["ms1"].id,
+            deliverable_id=d3.id,
+            reason="Another fix",
         )
     assert exc.value.code == "REVISION_LIMIT_EXCEEDED"
 
@@ -451,6 +547,7 @@ def test_c4_request_revision_flow_and_limit(db_session, active_contract_fixtures
 # =============================================================================
 # Ticket C5 Tests: Atomic Acceptance & Auto Accept
 # =============================================================================
+
 
 def test_c5_manual_acceptance_atomic_with_finance(db_session, active_contract_fixtures):
     f = active_contract_fixtures
@@ -460,8 +557,15 @@ def test_c5_manual_acceptance_atomic_with_finance(db_session, active_contract_fi
     ctx_client = make_ctx(f["client"].id, key="accept-cmd-1")
 
     # Start and submit
-    ms_service.start_milestone_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True))
-    d1 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Final code")
+    ms_service.start_milestone_in_tx(
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
+    )
+    d1 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Final code"
+    )
 
     fake_finance = FakeFinancePort(funded=True)
 
@@ -482,7 +586,11 @@ def test_c5_manual_acceptance_atomic_with_finance(db_session, active_contract_fi
     assert f["ms1"].accepted_at is not None
 
     # Verify review record
-    review = db_session.query(MilestoneReview).filter_by(milestone_id=f["ms1"].id, action=MilestoneReviewAction.ACCEPT).first()
+    review = (
+        db_session.query(MilestoneReview)
+        .filter_by(milestone_id=f["ms1"].id, action=MilestoneReviewAction.ACCEPT)
+        .first()
+    )
     assert review is not None
     assert review.reviewed_by == f["client"].id
 
@@ -496,8 +604,15 @@ def test_c5_acceptance_rollback_on_finance_failure(db_session, active_contract_f
     ctx_client = make_ctx(f["client"].id)
 
     # Start with fake, submit, and commit baseline
-    ms_service.start_milestone_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True))
-    d1 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Final code")
+    ms_service.start_milestone_in_tx(
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
+    )
+    d1 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Final code"
+    )
     db_session.commit()
 
     # Now call accept with UnavailableFinancePort
@@ -524,16 +639,32 @@ def test_c5_auto_acceptance_by_system(db_session, active_contract_fixtures):
     work = DeliverableWorkService()
     ctx_student = make_ctx(f["student"].id)
 
-    ms_service.start_milestone_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True))
-    d1 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission")
+    ms_service.start_milestone_in_tx(
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
+    )
+    d1 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission"
+    )
 
     job_key = f"milestone.auto_accept:{f['ms1'].id}:1"
 
     # Attempt auto-accept before deadline -> 409 INVALID_STATE_TRANSITION
-    ctx_sys_early = make_ctx(actor_user_id=None, actor_type=ActorType.SYSTEM, now_utc=datetime(2026, 11, 5), job_key=job_key)
+    ctx_sys_early = make_ctx(
+        actor_user_id=None,
+        actor_type=ActorType.SYSTEM,
+        now_utc=datetime(2026, 11, 5),
+        job_key=job_key,
+    )
     with pytest.raises(ConflictError) as exc:
         work.record_acceptance_in_tx(
-            db_session, ctx=ctx_sys_early, milestone_id=f["ms1"].id, deliverable_id=d1.id, source="AUTO",
+            db_session,
+            ctx=ctx_sys_early,
+            milestone_id=f["ms1"].id,
+            deliverable_id=d1.id,
+            source="AUTO",
         )
     assert exc.value.code == "INVALID_STATE_TRANSITION"
 
@@ -545,7 +676,11 @@ def test_c5_auto_acceptance_by_system(db_session, active_contract_fixtures):
         job_key=job_key,
     )
     ref = work.record_acceptance_in_tx(
-        db_session, ctx=ctx_sys_passed, milestone_id=f["ms1"].id, deliverable_id=d1.id, source="AUTO",
+        db_session,
+        ctx=ctx_sys_passed,
+        milestone_id=f["ms1"].id,
+        deliverable_id=d1.id,
+        source="AUTO",
     )
     assert ref.source == "AUTO"
 
@@ -568,10 +703,25 @@ def test_c5_acceptance_idempotency_and_permission(db_session, active_contract_fi
     ctx_outsider = make_ctx(f["outsider"].id, key="idemp-key-c5-1")
 
     # Start milestone and submit deliverables with a revision cycle
-    ms_service.start_milestone_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True))
-    d1 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 1")
-    del_service.request_revision_in_tx(db_session, ctx=ctx_client, milestone_id=f["ms1"].id, deliverable_id=d1.id, reason="Needs polish")
-    d2 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 2")
+    ms_service.start_milestone_in_tx(
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
+    )
+    d1 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 1"
+    )
+    del_service.request_revision_in_tx(
+        db_session,
+        ctx=ctx_client,
+        milestone_id=f["ms1"].id,
+        deliverable_id=d1.id,
+        reason="Needs polish",
+    )
+    d2 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Submission 2"
+    )
     db_session.commit()
 
     # 1. Outsider attempts acceptance -> Zero-Leak 404
@@ -648,8 +798,15 @@ def test_c5_accept_endpoint_http_returns_settlement_id(db_session, active_contra
     del_service = DeliverableService()
     ctx_student = make_ctx(f["student"].id)
 
-    ms_service.start_milestone_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, finance_port=FakeFinancePort(funded=True))
-    d1 = del_service.submit_deliverable_in_tx(db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Ready for review")
+    ms_service.start_milestone_in_tx(
+        db_session,
+        ctx=ctx_student,
+        milestone_id=f["ms1"].id,
+        finance_port=FakeFinancePort(funded=True),
+    )
+    d1 = del_service.submit_deliverable_in_tx(
+        db_session, ctx=ctx_student, milestone_id=f["ms1"].id, note="Ready for review"
+    )
     db_session.commit()
 
     app = FastAPI()
@@ -671,3 +828,47 @@ def test_c5_accept_endpoint_http_returns_settlement_id(db_session, active_contra
     assert data["status"] == "ACCEPTED"
     assert data["settlement_id"] is not None
     assert int(data["settlement_id"]) > 0
+
+
+def test_review_policy_uses_milestone_snapshot_after_contract_amendment(
+    db_session, active_contract_fixtures
+):
+    from datetime import timedelta
+
+    f = active_contract_fixtures
+    old = f["version"]
+    newer = ContractVersion(
+        contract_id=f["contract"].id,
+        version_no=2,
+        created_by=f["client"].id,
+        status="EFFECTIVE",
+        total_amount=3000000,
+        fee_rate_bp=500,
+        review_period_seconds=1,
+        max_revision_count=0,
+        grace_period_seconds=0,
+        funding_policy="PER_MILESTONE",
+        terms_json={},
+    )
+    db_session.add(newer)
+    db_session.flush()
+    f["contract"].effective_version_id = newer.id
+    f["ms1"].status = MilestoneStatus.IN_PROGRESS
+    db_session.flush()
+    now = datetime(2026, 11, 7)
+    service = DeliverableService()
+    d = service.submit_deliverable_in_tx(
+        db_session,
+        ctx=make_ctx(f["student"].id, now_utc=now),
+        milestone_id=f["ms1"].id,
+        note="Completed work",
+    )
+    assert f["ms1"].review_deadline == now + timedelta(seconds=old.review_period_seconds)
+    service.request_revision_in_tx(
+        db_session,
+        ctx=make_ctx(f["client"].id, now_utc=now),
+        milestone_id=f["ms1"].id,
+        deliverable_id=d.id,
+        reason="Please revise",
+    )
+    assert f["ms1"].revision_count == 1

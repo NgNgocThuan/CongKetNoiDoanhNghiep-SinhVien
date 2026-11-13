@@ -14,6 +14,7 @@ import {
 } from '@/features/student-jobs/components/StudentUI'
 import { applicationsApi } from '../api'
 import type { ApplicationDetail } from '../types'
+import { CheckCircle2, FileText, Send } from 'lucide-react'
 const schema = z.object({
   cv_id: z.string().min(1, 'Vui lòng chọn CV.'),
   cover_letter: z.string().max(10000, 'Thư giới thiệu tối đa 10.000 ký tự.'),
@@ -78,7 +79,7 @@ function ApplyForm({
     )
   return (
     <form
-      className="student-form"
+      className="student-form student-apply-form"
       onSubmit={form.handleSubmit(async (data) => {
         await action.run(async () => {
           const created = await applicationsApi.apply({
@@ -92,13 +93,15 @@ function ApplyForm({
         }, 'Đã nộp đơn ứng tuyển.')
       })}
     >
-      <p>
-        <strong>{job?.title || 'Vị trí tuyển dụng #' + jobId}</strong>
-        <br />
-        {job?.company.name}
-      </p>
-      <label>
-        CV ứng tuyển
+      <div className="student-apply-summary">
+        <span className="student-logo"><FileText size={22} /></span>
+        <div>
+          <strong>{job?.title || 'Vị trí tuyển dụng #' + jobId}</strong>
+          <span>{job?.company.name}</span>
+        </div>
+      </div>
+      <label className="student-apply-field">
+        <span>CV ứng tuyển</span>
         <select {...form.register('cv_id')}>
           {cvs.data.map((cv) => (
             <option key={cv.id} value={cv.id}>
@@ -107,18 +110,20 @@ function ApplyForm({
             </option>
           ))}
         </select>
+        <small><CheckCircle2 size={13} /> Nhà tuyển dụng sẽ nhận đúng phiên bản CV tại thời điểm bạn nộp đơn.</small>
       </label>
       <span className="field__error">
         {form.formState.errors.cv_id?.message}
       </span>
-      <label>
-        Thư giới thiệu (tùy chọn)
+      <label className="student-apply-field">
+        <span>Thư giới thiệu <em>(tùy chọn)</em></span>
         <textarea
           rows={5}
           maxLength={10000}
           {...form.register('cover_letter')}
           placeholder="Giới thiệu kỹ năng và lý do bạn quan tâm vị trí này…"
         />
+        <small>Nêu kinh nghiệm phù hợp, điểm mạnh và thời gian bạn có thể bắt đầu.</small>
       </label>
       <span className="field__error">
         {form.formState.errors.cover_letter?.message}
@@ -134,7 +139,7 @@ function ApplyForm({
           Hủy
         </Button>
         <Button type="submit" pending={action.pending}>
-          Gửi đơn ứng tuyển
+          <Send size={16} /> Gửi đơn ứng tuyển
         </Button>
       </div>
     </form>

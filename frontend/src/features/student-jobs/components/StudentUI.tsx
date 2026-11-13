@@ -6,23 +6,25 @@ export function StudentPage({
   title,
   description,
   actions,
+  hideHeading = false,
   children,
 }: {
   title: string
   description?: string
   actions?: ReactNode
+  hideHeading?: boolean
   children: ReactNode
 }) {
   return (
     <section className="student-area">
-      <header className="student-heading">
+      {!hideHeading && <header className="student-heading">
         <div>
           <p className="eyebrow">HÀNH TRÌNH NGHỀ NGHIỆP</p>
           <h1>{title}</h1>
           <p className="muted">{description}</p>
         </div>
         <div className="student-actions">{actions}</div>
-      </header>
+      </header>}
       {children}
     </section>
   )

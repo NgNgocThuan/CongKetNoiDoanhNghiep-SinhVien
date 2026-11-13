@@ -2,7 +2,7 @@
 
 from dataclasses import asdict
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.ai import cv_parser, job_parser
@@ -20,10 +20,8 @@ from app.models import (
     Student,
     StudentProfile,
     StudentSkill,
-    TermStudent,
     User,
 )
-from app.services.internship_service import is_student_in_term
 from app.utils.datetime_utils import utcnow
 from app.utils.hashing import sha256_json
 from app.utils.pagination import paginate
@@ -46,21 +44,14 @@ def get_job(db: Session, job_id, *, company_id=None, student=None):
     job = db.scalar(stmt)
     if job is None:
         raise NotFoundError("Không tìm thấy tin tuyển dụng")
-    if (
-        student is not None
-        and job.term_id is not None
-        and not is_student_in_term(db, student.id, job.term_id)
-    ):
-        raise NotFoundError("Không tìm thấy tin tuyển dụng")
     return job
 
 
-def build_input_hash(cv, job, student, *, in_term=True):
+def build_input_hash(cv, job, student):
     return sha256_json(
         {
             "algorithm": ALGO_VERSION,
             "today": utcnow().date(),
-            "in_term": in_term,
             "student": [
                 student.id,
                 student.major_id,
@@ -78,7 +69,6 @@ def build_input_hash(cv, job, student, *, in_term=True):
                 job.requirements,
                 job.status,
                 job.deadline,
-                job.term_id,
                 job.min_gpa,
                 job.min_experience_months,
                 sorted(m.major_id for m in job.majors),
@@ -91,18 +81,17 @@ def build_input_hash(cv, job, student, *, in_term=True):
 
 
 def get_or_compute_match(db: Session, student, job):
-    student = db.scalar(select(Student).where(Student.id == student.id).options(*STUDENT_LOADS))
-    job = db.scalar(select(Job).where(Job.id == job.id).options(*JOB_LOADS))
+    student = db.scalar(select(Student).where(Student.id == student.id).options(*STUDENT_LOADS).execution_options(populate_existing=True))
+    job = db.scalar(select(Job).where(Job.id == job.id).options(*JOB_LOADS).execution_options(populate_existing=True))
     cv = db.scalar(
         select(CV)
         .where(CV.student_id == student.id, CV.deleted_at.is_(None))
         .order_by(CV.is_default.desc(), CV.id.desc())
         .limit(1)
     )
-    in_term = job.term_id is None or is_student_in_term(db, student.id, job.term_id)
     # Reuse parsers' content hashes before considering the matching cache.
     # Without credentials and parsed data, manual catalog skills still work.
-    eligible = not check_hard_rules(student, job, in_term=in_term)
+    eligible = bool(student.skills) and not check_hard_rules(student, job)
     try:
         cv_data = (
             cv_parser.parse_cv(db, cv)
@@ -122,7 +111,7 @@ def get_or_compute_match(db: Session, student, job):
             "Không thể phân tích dữ liệu AI; kiểm tra cấu hình hoặc phân tích lại",
             code="AI_UNAVAILABLE",
         ) from exc
-    digest = build_input_hash(cv, job, student, in_term=in_term)
+    digest = build_input_hash(cv, job, student)
     cached = db.scalar(
         select(MatchingResult).where(
             MatchingResult.student_id == student.id, MatchingResult.job_id == job.id
@@ -130,10 +119,10 @@ def get_or_compute_match(db: Session, student, job):
     )
     if cached is not None and cached.input_hash == digest:
         return cached
-    breakdown = asdict(compute_match(student, job, cv_data, job_data, in_term=in_term))
+    breakdown = asdict(compute_match(student, job, cv_data, job_data))
     breakdown.pop("failed_rules")
     if not settings.AI_API_KEY and cv_data is None and job_data is None:
-        breakdown["explanation"] += " Based on declared skills; AI extraction unavailable."
+        breakdown["explanation"] += " Đối chiếu kỹ năng đã khai báo trong hồ sơ và tin tuyển dụng."
     if cached is None:
         cached = MatchingResult(student_id=student.id, job_id=job.id)
         db.add(cached)
@@ -151,11 +140,9 @@ def score_for_student(db: Session, student, job_id):
 
 
 def _eligible_jobs(student):
-    membership = select(TermStudent.term_id).where(TermStudent.student_id == student.id)
     return select(Job).where(
         Job.status == JobStatus.APPROVED,
         Job.deadline >= utcnow().date(),
-        or_(Job.term_id.is_(None), Job.term_id.in_(membership)),
     )
 
 
@@ -184,6 +171,7 @@ def recommend_jobs_for_student(db: Session, student, params):
         .where(
             MatchingResult.student_id == student.id,
             MatchingResult.passed_rules.is_(True),
+            MatchingResult.skill_score > 0,
             Job.id.in_(_eligible_jobs(student).with_only_columns(Job.id)),
         )
         .order_by(MatchingResult.score.desc(), MatchingResult.job_id)
@@ -210,11 +198,45 @@ def _candidate_query(job):
         .join(User)
         .where(StudentProfile.is_open_to_work.is_(True), User.status == UserStatus.ACTIVE)
     )
-    if job.term_id is not None:
-        stmt = stmt.where(
-            Student.id.in_(select(TermStudent.student_id).where(TermStudent.term_id == job.term_id))
-        )
     return stmt
+
+
+def candidate_profile(db: Session, company, job_id: int, student_id: int):
+    job = get_job(db, job_id, company_id=company.id)
+    from app.services.company_eligibility import require_verified_company
+    require_verified_company(company)
+    student = db.scalar(_candidate_query(job).where(Student.id == student_id).options(
+        *STUDENT_LOADS, selectinload(Student.major), selectinload(Student.experiences),
+        selectinload(Student.projects), selectinload(Student.certificates),
+    ))
+    if student is None:
+        raise NotFoundError("Không tìm thấy hồ sơ được chia sẻ")
+    match = get_or_compute_match(db, student, job)
+    if not match.passed_rules or not match.matched_skills:
+        raise NotFoundError("Sinh viên không thuộc danh sách gợi ý của tin này")
+    profile = student.profile
+    cv = db.scalar(select(CV).where(CV.student_id == student.id, CV.deleted_at.is_(None))
+                   .order_by(CV.is_default.desc(), CV.id.desc()).limit(1))
+    data = {
+        "student_id": student.id, "user_id": student.user_id, "full_name": student.full_name,
+        "major_name": student.major.name, "cohort": student.cohort,
+        "gpa": student.gpa if profile.show_gpa else None,
+        "bio": profile.bio, "career_goal": profile.career_goal,
+        "contact_email": (profile.contact_email or student.user.email) if profile.show_contact else None,
+        "contact_phone": (profile.contact_phone or student.phone) if profile.show_contact else None,
+        "skills": [{"name": item.skill.name, "level": item.level} for item in student.skills],
+        "experiences": [{"company_name": item.company_name, "position": item.position,
+                         "start_date": item.start_date, "end_date": item.end_date,
+                         "description": item.description} for item in student.experiences],
+        "projects": [{"name": item.name, "role": item.role, "description": item.description,
+                      "tech_stack": item.tech_stack} for item in student.projects],
+        "certificates": [{"name": item.name, "issuer": item.issuer, "is_verified": item.is_verified}
+                         for item in student.certificates],
+        "achievements": [{"title": item.title, "description": item.description}
+                         for item in student.achievements] if profile.show_achievements else [],
+        "cv": {"title": cv.title, "type": cv.type} if cv else None,
+    }
+    return data, cv
 
 
 def recommend_candidates_for_job(db: Session, company, job_id, params):
@@ -238,6 +260,7 @@ def recommend_candidates_for_job(db: Session, company, job_id, params):
         .where(
             MatchingResult.job_id == job.id,
             MatchingResult.passed_rules.is_(True),
+            MatchingResult.skill_score > 0,
             MatchingResult.student_id.in_(_candidate_query(job).with_only_columns(Student.id)),
         )
         .order_by(MatchingResult.score.desc(), MatchingResult.student_id)

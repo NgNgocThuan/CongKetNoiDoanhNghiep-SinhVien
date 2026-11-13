@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.core.enums import CompanySize, UserRole, UserStatus, VerificationStatus
 from app.schemas.common import ORMModel
+from app.schemas.terms import TermsAcceptance
 
 
 class LoginRequest(BaseModel):
@@ -63,6 +64,7 @@ class ActivateAccountRequest(BaseModel):
 class RegisterCompanyRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
+    terms_acceptance: TermsAcceptance
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     company_name: str = Field(min_length=1, max_length=255)

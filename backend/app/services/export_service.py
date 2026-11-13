@@ -61,7 +61,7 @@ def export_excel(db: Session, kind, filters):
             .where(*dashboard.time_conditions(Company.created_at, filters))
             .order_by(Company.id)
         )
-        if filters.term_id or filters.major_id or filters.faculty_id:
+        if filters.major_id or filters.faculty_id:
             stmt = stmt.where(
                 Company.id.in_(
                     select(Job.company_id).where(*dashboard.job_conditions(filters, dates=False))
@@ -70,11 +70,11 @@ def export_excel(db: Session, kind, filters):
         headers = ["ID", "Company", "Verification"]
     elif kind == "jobs":
         stmt = (
-            select(Job.id, Job.title, Job.company_id, Job.term_id, Job.status, Job.deadline)
+            select(Job.id, Job.title, Job.company_id, Job.status, Job.deadline)
             .where(*dashboard.job_conditions(filters))
             .order_by(Job.id)
         )
-        headers = ["ID", "Title", "Company ID", "Term ID", "Status", "Deadline"]
+        headers = ["ID", "Title", "Company ID", "Status", "Deadline"]
     elif kind == "applications":
         stmt = (
             select(

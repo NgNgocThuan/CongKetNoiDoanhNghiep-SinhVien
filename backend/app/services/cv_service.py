@@ -11,19 +11,37 @@ from app.ai import cv_parser
 from app.core.config import settings
 from app.core.enums import CVType, UserRole
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.models import CV, Application, Job, Student, User
+from app.models import (
+    CV,
+    Application,
+    FreelanceApplication,
+    FreelanceProject,
+    Job,
+    Skill,
+    Student,
+    StudentSkill,
+    User,
+)
 from app.schemas.cvs import CVOnlineCreate, CVUpdate
 from app.utils.datetime_utils import utcnow
 from app.utils.file_storage import CV_EXTENSIONS, absolute_path, save_upload
 
 
-def list_my_cvs(db: Session, student: Student) -> list[CV]:
+def list_my_cvs(db: Session, student: Student) -> list[dict]:
+    from app.schemas.cvs import CVRead
     stmt = (
         select(CV)
         .where(CV.student_id == student.id, CV.deleted_at.is_(None))
         .order_by(CV.is_default.desc(), CV.updated_at.desc(), CV.id.desc())
     )
-    return list(db.scalars(stmt).all())
+    result = []
+    names = profile_skill_names(db, student.id)
+    for cv in db.scalars(stmt):
+        data = CVRead.model_validate(cv).model_dump()
+        if cv.type == CVType.ONLINE:
+            data["content_json"] = {**(cv.content_json or {}), "skills": names}
+        result.append(data)
+    return result
 
 
 def _has_active_cv(db: Session, student_id: int) -> bool:
@@ -67,10 +85,27 @@ def _official_content(student: Student) -> dict:
     }
 
 
-def _online_content(student: Student, supplied: dict) -> dict:
+def profile_skill_names(db: Session, student_id: int) -> list[str]:
+    return list(db.scalars(select(Skill.name).join(StudentSkill).where(
+        StudentSkill.student_id == student_id, Skill.is_active.is_(True)
+    ).order_by(Skill.name)))
+
+
+def sync_online_skills(db: Session, student_id: int):
+    db.flush()
+    names = profile_skill_names(db, student_id)
+    for cv in db.scalars(select(CV).where(CV.student_id == student_id, CV.type == CVType.ONLINE, CV.deleted_at.is_(None))):
+        content = dict(cv.content_json or {})
+        if content.get("skills") != names:
+            cv.content_json = {**content, "skills": names}
+            cv.parsed_json = cv.parsed_at = cv.content_hash = None
+
+
+def _online_content(db: Session, student: Student, supplied: dict) -> dict:
     content = dict(supplied)
     # Dữ liệu học thuật luôn lấy lại từ nguồn chính thức, không tin dữ liệu client gửi lên.
     content["official"] = _official_content(student)
+    content["skills"] = profile_skill_names(db, student.id)
     return content
 
 
@@ -79,7 +114,7 @@ def create_online_cv(db: Session, student: Student, data: CVOnlineCreate) -> CV:
         student_id=student.id,
         title=data.title,
         type=CVType.ONLINE,
-        content_json=_online_content(student, data.content_json),
+        content_json=_online_content(db, student, data.content_json),
         is_default=not _has_active_cv(db, student.id),
     )
     db.add(cv)
@@ -101,7 +136,7 @@ def update_cv(db: Session, student: Student, cv_id: int, data: CVUpdate) -> CV:
     if "content_json" in changes:
         if cv.type != CVType.ONLINE:
             raise BadRequestError("Chỉ CV trực tuyến mới sửa được nội dung")
-        cv.content_json = _online_content(student, changes.pop("content_json") or {})
+        cv.content_json = _online_content(db, student, changes.pop("content_json") or {})
         # Bất kỳ thay đổi nội dung nào cũng làm cache AI cũ mất hiệu lực.
         cv.content_hash = None
         cv.parsed_json = None
@@ -169,12 +204,12 @@ def _company_snapshot(db: Session, company_id: int, cv_id: int) -> str | None:
     return db.scalar(stmt)
 
 
-def _write_online_cv(cv: CV) -> Path:
+def _write_online_cv(db: Session, cv: CV) -> Path:
     relative = Path("cvs") / "online" / str(cv.student_id) / f"cv-{cv.id}.json"
     path = Path(settings.UPLOAD_DIR) / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(cv.content_json or {}, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps({**(cv.content_json or {}), "skills": profile_skill_names(db, cv.student_id)}, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return path
 
@@ -185,13 +220,24 @@ def get_downloadable_path(db: Session, cv_id: int, user: User) -> tuple[Path, st
         raise NotFoundError("Không tìm thấy CV")
 
     company_snapshot = None
+    freelance_access = db.scalar(
+        select(FreelanceApplication.id)
+        .join(FreelanceProject, FreelanceProject.id == FreelanceApplication.project_id)
+        .where(
+            FreelanceApplication.cv_id == cv.id,
+            FreelanceProject.client_user_id == user.id,
+        )
+        .limit(1)
+    )
     if user.role == UserRole.STUDENT and user.student is not None:
         if cv.student_id != user.student.id:
             raise NotFoundError("Không tìm thấy CV")
     elif user.role == UserRole.COMPANY and user.company is not None:
         company_snapshot = _company_snapshot(db, user.company.id, cv.id)
-        if company_snapshot is None:
+        if company_snapshot is None and not freelance_access:
             raise NotFoundError("Không tìm thấy CV")
+    elif freelance_access:
+        pass
     else:
         raise NotFoundError("Không tìm thấy CV")
 
@@ -213,7 +259,7 @@ def get_downloadable_path(db: Session, cv_id: int, user: User) -> tuple[Path, st
             else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
     else:
-        path = _write_online_cv(cv)
+        path = _write_online_cv(db, cv)
         media_type = "application/json"
     if not path.is_file():
         raise NotFoundError("File CV không còn tồn tại")
@@ -228,6 +274,32 @@ def analyze_cv(db: Session, student: Student, cv_id: int) -> dict:
     cv.parsed_json = parsed
     db.commit()
     return {"cv_id": cv.id, "parsed_json": parsed}
+
+
+def confirm_cv_skills(db: Session, student: Student, cv_id: int, selected: list[str]):
+    from app.core.enums import SkillLevel, SkillSource
+    from app.services.catalog_service import normalize_skill_names
+
+    cv = _get_owned_cv(db, student, cv_id)
+    suggestions = {name.strip().casefold() for name in (cv.parsed_json or {}).get("skills", []) if isinstance(name, str)}
+    names = list({name.strip().casefold(): name.strip() for name in selected if name.strip()}.values())
+    if not names or any(name.casefold() not in suggestions for name in names):
+        raise BadRequestError("Chỉ chọn kỹ năng từ kết quả phân tích hiện tại của CV. Hãy phân tích lại nếu CV đã thay đổi.")
+    skills = normalize_skill_names(db, names)
+    if len(skills) != len(names):
+        raise BadRequestError("Có kỹ năng không tồn tại trong danh mục")
+    db.scalar(select(Student.id).where(Student.id == student.id).with_for_update())
+    added = []
+    for skill in skills:
+        if not skill.is_active:
+            raise BadRequestError("Kỹ năng đã ngừng hoạt động")
+        if db.get(StudentSkill, (student.id, skill.id)) is None:
+            db.add(StudentSkill(student_id=student.id, skill_id=skill.id,
+                                level=SkillLevel.BEGINNER, source=SkillSource.SELF))
+            added.append(skill.name)
+    sync_online_skills(db, student.id)
+    db.commit()
+    return {"added_skills": added, "skills": profile_skill_names(db, student.id)}
 
 
 def get_application_snapshot_path(

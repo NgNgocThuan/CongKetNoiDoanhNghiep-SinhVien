@@ -1,13 +1,22 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
+  ArrowUpRight,
   BarChart3,
   BriefcaseBusiness,
   Building2,
+  CircleDollarSign,
+  Clock3,
+  FolderCheck,
+  FolderKanban,
+  Gavel,
   GraduationCap,
+  Landmark,
   Users,
   UserCheck,
+  WalletCards,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/common/PageHeader'
 import {
   CatalogSelect,
@@ -23,6 +32,26 @@ import { Button } from '@/components/ui/Button'
 import { http } from '@/lib/http'
 import { downloadFile } from '@/utils/download'
 import type { Page } from '@/types/api'
+import './analytics.css'
+
+type FreelancerOverview = {
+  platform_fee_revenue: number
+  disbursed_amount: number
+  total_projects: number
+  pending_review_projects: number
+  recruiting_projects: number
+  in_progress_projects: number
+  completed_projects: number
+  open_disputes: number
+  pending_payouts: number
+}
+
+const formatVnd = (value: number) =>
+  new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value)
 
 const sections = {
   breakdown: {
@@ -66,24 +95,11 @@ const sections = {
       ['applications', 'Đơn ứng tuyển'],
     ],
   },
-  'flow-comparison': {
-    title: 'So sánh luồng tuyển dụng',
-    columns: [
-      ['flow', 'Luồng'],
-      ['jobs', 'Tin tuyển dụng'],
-      ['applications', 'Đơn ứng tuyển'],
-      ['hired', 'Đã tuyển'],
-    ],
-  },
 }
 function GroupName({ group, groupBy }: { group: unknown; groupBy: string }) {
   const id = Number(group)
   const resource =
-    groupBy === 'faculty'
-      ? '/catalog/faculties/'
-      : groupBy === 'major'
-        ? '/catalog/majors/'
-        : '/internship-terms/'
+    groupBy === 'faculty' ? '/catalog/faculties/' : '/catalog/majors/'
   const query = useQuery({
     queryKey: ['analytics-group', resource, id],
     queryFn: () => getData<{ name: string }>(resource + id),
@@ -174,12 +190,6 @@ function AnalyticsTable({
                 render: (row: Row) =>
                   key === 'group' ? (
                     <GroupName group={row[key]} groupBy={filters.group_by} />
-                  ) : key === 'flow' ? (
-                    row[key] === 'free' ? (
-                      'Tự do'
-                    ) : (
-                      'Theo đợt'
-                    )
                   ) : key === 'match_rate' || key === 'average_score' ? (
                     Number(row[key]).toFixed(1)
                   ) : (
@@ -211,6 +221,14 @@ export default function AnalyticsPage() {
     queryFn: () =>
       getData<Record<string, number>>('/admin/dashboard/overview', filters),
   })
+  const freelancerOverview = useQuery({
+    queryKey: ['analytics', 'freelancer-overview', filters],
+    queryFn: () =>
+      getData<FreelancerOverview>(
+        '/admin/dashboard/freelancer-overview',
+        filters,
+      ),
+  })
   const recompute = useMutation({
     mutationFn: () => http.post('/matching/recompute'),
   })
@@ -234,6 +252,56 @@ export default function AnalyticsPage() {
     { key: 'interviews', label: 'Đang phỏng vấn', icon: BarChart3 },
     { key: 'hired', label: 'Đã tuyển', icon: UserCheck },
   ]
+  const freelancerOperations = [
+    {
+      key: 'pending_review_projects',
+      label: 'Chờ duyệt',
+      description: 'Dự án cần admin kiểm tra',
+      icon: Clock3,
+      href: '/admin/freelancer/admin/projects',
+      tone: 'warning',
+    },
+    {
+      key: 'recruiting_projects',
+      label: 'Đang tuyển sinh viên',
+      description: 'Dự án đã duyệt và đang mở',
+      icon: Users,
+      href: '/admin/freelancer/admin/projects',
+      tone: 'info',
+    },
+    {
+      key: 'in_progress_projects',
+      label: 'Đang thực hiện',
+      description: 'Dự án đang triển khai',
+      icon: FolderKanban,
+      href: '/admin/freelancer/admin/projects',
+      tone: 'neutral',
+    },
+    {
+      key: 'completed_projects',
+      label: 'Đã hoàn thành',
+      description: 'Dự án hoàn thành hoặc đã đóng',
+      icon: FolderCheck,
+      href: '/admin/freelancer/admin/projects',
+      tone: 'success',
+    },
+    {
+      key: 'open_disputes',
+      label: 'Tranh chấp đang mở',
+      description: 'Hồ sơ cần theo dõi, xử lý',
+      icon: Gavel,
+      href: '/admin/freelancer/admin/disputes',
+      tone: 'danger',
+    },
+    {
+      key: 'pending_payouts',
+      label: 'Lệnh chi đang xử lý',
+      description: 'Chờ ngân hàng, đang xử lý hoặc cần xác minh',
+      icon: WalletCards,
+      href: '/admin/freelancer/admin/transfers',
+      tone: 'warning',
+    },
+  ] as const
   return (
     <div className="workspace">
       <PageHeader
@@ -297,15 +365,6 @@ export default function AnalyticsPage() {
             />
           </label>
           <label>
-            Mã đợt thực tập
-            <input
-              type="number"
-              min="1"
-              value={draft.term_id || ''}
-              onChange={(e) => update('term_id', e.target.value)}
-            />
-          </label>
-          <label>
             Phân nhóm
             <select
               value={draft.group_by}
@@ -315,7 +374,6 @@ export default function AnalyticsPage() {
                 ['major', 'Ngành'],
                 ['faculty', 'Khoa'],
                 ['cohort', 'Khóa'],
-                ['term', 'Đợt'],
               ].map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
@@ -335,6 +393,83 @@ export default function AnalyticsPage() {
           kết quả matching đã lưu, chỉ mang tính tham khảo.
         </p>
       </Panel>
+      <section className="analytics-freelancer" aria-labelledby="freelancer-title">
+        <div className="analytics-section-heading">
+          <div>
+            <p className="analytics-eyebrow">VẬN HÀNH FREELANCER</p>
+            <h2 id="freelancer-title">Tài chính và công việc cần quan tâm</h2>
+            <p>
+              Doanh thu và tiền đã chi theo khoảng ngày đã chọn. Các hàng đợi
+              phản ánh trạng thái hiện tại của hệ thống.
+            </p>
+          </div>
+          <span className="analytics-project-total">
+            <FolderKanban size={17} />
+            <strong>
+              {freelancerOverview.data?.total_projects.toLocaleString('vi-VN') ?? '—'}
+            </strong>
+            dự án
+          </span>
+        </div>
+        <DataResult query={freelancerOverview}>
+          {(data) => (
+            <>
+              <div className="analytics-finance-grid">
+                <article className="analytics-finance-card analytics-finance-card--revenue">
+                  <div className="analytics-finance-icon">
+                    <CircleDollarSign size={25} />
+                  </div>
+                  <div>
+                    <p>Doanh thu phí nền tảng</p>
+                    <strong>{formatVnd(data.platform_fee_revenue)}</strong>
+                    <span>
+                      Phí 5% đã ghi nhận từ các lần giải ngân thành công
+                    </span>
+                  </div>
+                </article>
+                <article className="analytics-finance-card analytics-finance-card--payout">
+                  <div className="analytics-finance-icon">
+                    <Landmark size={25} />
+                  </div>
+                  <div>
+                    <p>Đã giải ngân cho sinh viên</p>
+                    <strong>{formatVnd(data.disbursed_amount)}</strong>
+                    <span>Tổng tiền thực chuyển thành công trong kỳ</span>
+                  </div>
+                </article>
+              </div>
+              <div className="analytics-operations-grid">
+                {freelancerOperations.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      className={`analytics-operation-card analytics-operation-card--${item.tone}`}
+                      key={item.key}
+                      to={item.href}
+                    >
+                      <div className="analytics-operation-top">
+                        <span className="analytics-operation-icon">
+                          <Icon size={20} />
+                        </span>
+                        <ArrowUpRight size={17} aria-hidden="true" />
+                      </div>
+                      <strong>{data[item.key].toLocaleString('vi-VN')}</strong>
+                      <h3>{item.label}</h3>
+                      <p>{item.description}</p>
+                    </Link>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </DataResult>
+      </section>
+      <div className="analytics-section-heading analytics-section-heading--compact">
+        <div>
+          <p className="analytics-eyebrow">TUYỂN DỤNG & NGUỒN NHÂN LỰC</p>
+          <h2>Tổng quan kết nối việc làm</h2>
+        </div>
+      </div>
       <DataResult query={overview}>
         {(data) => (
           <div className="ws-cards">

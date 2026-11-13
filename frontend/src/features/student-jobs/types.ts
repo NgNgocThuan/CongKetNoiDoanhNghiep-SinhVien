@@ -2,12 +2,12 @@ export interface Brief {
   id: number
   name: string
   logo_url?: string | null
+  user_id?: number
 }
 export interface Job {
   id: number
   title: string
   position: string
-  term_id: number | null
   location: string | null
   work_mode: string
   quantity: number
@@ -17,6 +17,8 @@ export interface Job {
   deadline: string
   status: string
   created_at: string
+  is_featured?: boolean
+  is_mou_partner?: boolean
   company: Brief
   job_type: Brief
   description?: string

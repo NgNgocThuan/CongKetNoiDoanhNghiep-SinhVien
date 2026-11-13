@@ -10,6 +10,7 @@ Hàm `queue_email` để các module khác gọi:
     )
 """
 import html
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import BackgroundTasks
@@ -20,16 +21,15 @@ from app.core.config import settings
 from app.core.enums import EmailStatus
 from app.models import EmailLog
 from app.schemas.common import PageParams
+from app.services.email_payload import encrypt_body
 from app.tasks.email_tasks import send_email_task
+from app.utils.datetime_utils import utcnow
 from app.utils.pagination import paginate
-
-# Cache nội dung HTML của email để retry chuẩn xác
-_email_body_cache: dict[int, str] = {}
 
 
 def queue_email(
     db: Session,
-    background_tasks: BackgroundTasks,
+    background_tasks: Optional[BackgroundTasks],
     *,
     to_email: str,
     subject: str,
@@ -38,22 +38,29 @@ def queue_email(
     user_id: Optional[int] = None,
     ref_type: Optional[str] = None,
     ref_id: Optional[int] = None,
+    commit: bool = True,
+    expires_at: Optional[datetime] = None,
 ) -> EmailLog:
     """Tạo bản ghi EmailLog và đưa tác vụ gửi email vào background_tasks."""
+    if expires_at is None and type in ("PASSWORD_RESET", "ACCOUNT_ACTIVATION"):
+        expires_at = utcnow() + timedelta(minutes=settings.RESET_TOKEN_EXPIRE_MINUTES)
     log = EmailLog(
         user_id=user_id,
         recipient_email=to_email,
         type=type,
-        subject=subject,
+        subject=" ".join(subject.split())[:255],
+        body_encrypted=encrypt_body(body_html),
+        expires_at=expires_at,
         ref_type=ref_type,
         ref_id=ref_id,
     )
     db.add(log)
-    db.commit()
-    db.refresh(log)
-    _email_body_cache[log.id] = body_html
-    # Truyền db vào send_email_task để tương thích với cả Test (SQLite in-memory) và Prod
-    background_tasks.add_task(send_email_task, log.id, body_html, db)
+    db.flush()
+    if commit:
+        db.commit()
+        db.refresh(log)
+    if background_tasks is not None:
+        background_tasks.add_task(send_email_task, log.id, None, db.get_bind())
     return log
 
 
@@ -179,7 +186,8 @@ def render_email_template(template_type: str, context: Optional[dict[str, Any]] 
 
     if template_type == "REPORT_HANDLED":
         r_id = ctx.get("report_id", "")
-        status = ctx.get("status", "")
+        status = {"RESOLVED": "Đã xử lý", "DISMISSED": "Không đủ căn cứ xử lý",
+                  "REJECTED": "Đã từ chối"}.get(str(ctx.get("status", "")), ctx.get("status", ""))
         note = ctx.get("resolution_note", "Không có ghi chú")
         subject = f"[Student Connect] Báo cáo vi phạm #{r_id} đã được xử lý"
         body_html = f"""
@@ -204,21 +212,26 @@ def retry_failed_emails(
     background_tasks: BackgroundTasks,
     *,
     max_retries: int = 3,
-    body_html_default: str = "<p>Thông báo từ hệ thống Student Connect.</p>",
 ) -> int:
     """Tìm các email FAILED có retry_count < max_retries và đưa vào hàng đợi gửi lại."""
     stmt = (
         select(EmailLog)
         .where(EmailLog.status == EmailStatus.FAILED)
         .where(EmailLog.retry_count < max_retries)
+        .where(EmailLog.body_encrypted.is_not(None))
         .order_by(EmailLog.created_at.asc())
+        .with_for_update()
     )
     failed_logs = db.scalars(stmt).all()
     count = 0
     for log in failed_logs:
+        if log.expires_at and log.expires_at <= utcnow():
+            log.error_message = "EMAIL_EXPIRED"
+            log.body_encrypted = None
+            continue
         log.status = EmailStatus.PENDING
-        body_html = _email_body_cache.get(log.id) or body_html_default
-        background_tasks.add_task(send_email_task, log.id, body_html, db)
+        log.next_attempt_at = None
+        background_tasks.add_task(send_email_task, log.id, None, db.get_bind())
         count += 1
     db.commit()
     return count

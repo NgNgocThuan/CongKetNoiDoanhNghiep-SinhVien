@@ -32,6 +32,10 @@ class EmailLog(CreatedAtMixin, Base):
     recipient_email: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(50), nullable=False)  # APPLY_SUCCESS, STATUS_CHANGED...
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Durable retry payload; never exposed by EmailLogRead. Encrypted with the app secret.
+    body_encrypted: Mapped[Optional[str]] = mapped_column(Text)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    next_attempt_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     status: Mapped[EmailStatus] = mapped_column(
         db_enum(EmailStatus), nullable=False, default=EmailStatus.PENDING, server_default=EmailStatus.PENDING.value
     )

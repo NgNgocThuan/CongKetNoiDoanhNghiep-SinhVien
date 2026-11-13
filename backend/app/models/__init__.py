@@ -2,11 +2,12 @@
 
 Khi thêm model mới: tạo trong file domain tương ứng rồi thêm tên vào đây.
 """
+
 from app.models.application import Application, ApplicationStatusLog, Invitation
 from app.models.base import Base
 from app.models.catalog import Faculty, Industry, JobType, Major, Skill, SkillAlias
 from app.models.communication import EmailLog, Notification, Report
-from app.models.company import Company, CompanyDocument
+from app.models.company import Company, CompanyDocument, CompanyVerification
 from app.models.freelancer_contracts import (
     ContractMilestoneTerm,
     ContractVersion,
@@ -34,6 +35,8 @@ from app.models.freelancer_finance import (
     Settlement,
     TransferAttempt,
 )
+from app.models.freelancer_finance_runtime import FinanceCounter as FinanceCounter
+from app.models.freelancer_finance_runtime import TreasuryEntry as TreasuryEntry
 from app.models.freelancer_identity import (
     BusinessVerification,
     BusinessVerificationFile,
@@ -68,9 +71,16 @@ from app.models.freelancer_payments import (
 from app.models.freelancer_projects import (
     FreelanceApplication,
     FreelanceProject,
+    FreelanceProjectAttachment,
     FreelanceProjectReview,
     FreelanceProjectSkill,
     ProjectMilestoneProposal,
+)
+from app.models.freelancer_runtime import (
+    DisputeWithdrawal,
+    FreelancerPolicy,
+    OtpRateBucket,
+    ProjectExpansion,
 )
 from app.models.internship import InternshipResult, InternshipTerm, TermStudent
 from app.models.job import Job, JobMajor, JobSkill, JobView, SavedJob
@@ -87,8 +97,10 @@ from app.models.student import (
     StudentSkill,
 )
 from app.models.user import PasswordResetToken, User
+from app.models.user_avatar import UserAvatar
 
 __all__ = [
+    "FreelanceProjectAttachment",
     "Base",
     # user
     "User",
@@ -140,4 +152,65 @@ __all__ = [
 ]
 
 
-__all__ += ['StoredFile', 'ClientProfile', 'UserVerification', 'BusinessVerification', 'BusinessVerificationFile', 'CompanyLimit', 'MouAgreement', 'FreelanceProject', 'ProjectMilestoneProposal', 'FreelanceProjectSkill', 'FreelanceProjectReview', 'FreelanceApplication', 'FreelanceContract', 'ProjectContractBudget', 'ContractVersion', 'Milestone', 'ContractMilestoneTerm', 'Deliverable', 'DeliverableFile', 'MilestoneReview', 'FreelanceReview', 'LedgerAccount', 'LedgerJournal', 'LedgerPosting', 'PaymentOrder', 'MilestoneFundingGuard', 'ProviderEvent', 'PaymentTransaction', 'MilestoneFunding', 'PaymentReviewCase', 'EscrowAccount', 'CancellationAgreement', 'Dispute', 'ActiveMilestoneDispute', 'MilestoneHold', 'DisputeEvidence', 'DisputeDecision', 'BankDestination', 'Settlement', 'MoneyTransfer', 'TransferAttempt', 'DailyLimitBucket', 'DailyLimitReservation', 'AuditLog', 'OutboxEvent', 'ScheduledJob', 'ReconciliationRun', 'ReconciliationItem', 'CommandRequest']
+__all__ += [
+    "StoredFile",
+    "ClientProfile",
+    "UserVerification",
+    "BusinessVerification",
+    "BusinessVerificationFile",
+    "CompanyLimit",
+    "MouAgreement",
+    "FreelanceProject",
+    "ProjectMilestoneProposal",
+    "FreelanceProjectSkill",
+    "FreelanceProjectReview",
+    "FreelanceApplication",
+    "FreelanceContract",
+    "ProjectContractBudget",
+    "ContractVersion",
+    "Milestone",
+    "ContractMilestoneTerm",
+    "Deliverable",
+    "DeliverableFile",
+    "MilestoneReview",
+    "FreelanceReview",
+    "LedgerAccount",
+    "LedgerJournal",
+    "LedgerPosting",
+    "PaymentOrder",
+    "MilestoneFundingGuard",
+    "ProviderEvent",
+    "PaymentTransaction",
+    "MilestoneFunding",
+    "PaymentReviewCase",
+    "EscrowAccount",
+    "CancellationAgreement",
+    "Dispute",
+    "ActiveMilestoneDispute",
+    "MilestoneHold",
+    "DisputeEvidence",
+    "DisputeDecision",
+    "BankDestination",
+    "Settlement",
+    "MoneyTransfer",
+    "TransferAttempt",
+    "DailyLimitBucket",
+    "DailyLimitReservation",
+    "AuditLog",
+    "OutboxEvent",
+    "ScheduledJob",
+    "ReconciliationRun",
+    "ReconciliationItem",
+    "CommandRequest",
+]
+
+
+__all__ += ["DisputeWithdrawal", "FreelancerPolicy", "OtpRateBucket"]
+
+__all__ += ["ProjectExpansion"]
+
+
+__all__ += ["FinanceCounter", "TreasuryEntry", "CompanyVerification"]
+
+
+__all__ += ["UserAvatar"]

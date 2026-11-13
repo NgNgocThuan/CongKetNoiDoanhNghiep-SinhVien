@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { http } from '@/lib/http'
 import { Button } from '@/components/ui/Button'
@@ -63,6 +64,7 @@ export function CVContent({ value }: { value: unknown }) {
   return <span className="student-rich">{String(value)}</span>
 }
 export function CVAnalysis({ cv }: { cv: CV }) {
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const client = useQueryClient()
   const mutation = useMutation({
     mutationFn: async () =>
@@ -72,8 +74,22 @@ export function CVAnalysis({ cv }: { cv: CV }) {
           parsed_json: Record<string, unknown>
         }>('/cvs/' + cv.id + '/analyze', undefined, { timeout: 120000 })
       ).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: ['student-cvs'] }),
+    onSuccess: () => { setSelectedSkills([]); return client.invalidateQueries({ queryKey: ['student-cvs'] }) },
   })
+  const confirmation = useMutation({
+    mutationFn: async () => (await http.post<{ added_skills: string[] }>('/cvs/' + cv.id + '/confirm-skills', { skills: selectedSkills })).data,
+    onSuccess: async () => {
+      setSelectedSkills([])
+      mutation.reset()
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['student-profile'] }),
+        client.invalidateQueries({ queryKey: ['student-cvs'] }),
+        client.invalidateQueries({ queryKey: ['matching'] }),
+      ])
+    },
+  })
+  const parsed = mutation.data?.parsed_json || cv.parsed_json
+  const suggestions = Array.isArray(parsed?.skills) ? [...new Set(parsed.skills.filter((item): item is string => typeof item === 'string'))] : []
   return (
     <section className="student-panel student-stack">
       <span className="student-tag teal">
@@ -91,6 +107,15 @@ export function CVAnalysis({ cv }: { cv: CV }) {
         {cv.parsed_json ? 'Phân tích lại' : 'Phân tích CV'}
       </Button>
       <Feedback error={mutation.error?.message} />
+      {suggestions.length > 0 && <div className="cv-skills-confirmation">
+        <h3>Xác nhận kỹ năng của bạn</h3>
+        <p>Chọn những kỹ năng bạn thực sự có để thêm vào hồ sơ. Matching chỉ dùng kỹ năng đã lưu trong hồ sơ.</p>
+        <div className="cv-skills-confirmation__options">{suggestions.map(name => <label key={name}>
+          <input type="checkbox" checked={selectedSkills.includes(name)} disabled={confirmation.isPending} onChange={event => { confirmation.reset(); setSelectedSkills(previous => event.target.checked ? [...previous, name] : previous.filter(item => item !== name)) }} />{name}
+        </label>)}</div>
+        <Button disabled={!selectedSkills.length} pending={confirmation.isPending} onClick={() => confirmation.mutate()}>Xác nhận & thêm vào hồ sơ ({selectedSkills.length})</Button>
+      </div>}
+      <Feedback error={confirmation.error?.message} success={confirmation.isSuccess ? 'Đã lưu kỹ năng vào hồ sơ và đồng bộ CV online.' : undefined} />
       {mutation.data?.parsed_json || cv.parsed_json ? (
         <CVContent value={mutation.data?.parsed_json || cv.parsed_json} />
       ) : (

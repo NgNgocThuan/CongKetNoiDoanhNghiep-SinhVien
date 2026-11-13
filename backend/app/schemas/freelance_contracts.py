@@ -1,4 +1,5 @@
 """Pydantic schemas for freelance contracts and contract versions."""
+
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -8,28 +9,28 @@ from app.core.freelancer_enums import (
     ContractVersionStatus,
     FundingPolicy,
 )
-from app.schemas.freelancer_common import EntityId, MoneyVnd
+from app.schemas.freelancer_common import EntityId, EscrowMoneyVnd, MoneyVnd
 
 
 class MilestoneTermInput(BaseModel):
-    title: str = Field(..., max_length=255)
+    title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
-    amount: MoneyVnd
-    acceptance_criteria: str
+    amount: EscrowMoneyVnd
+    acceptance_criteria: str = Field(min_length=1, max_length=20000)
     due_at: datetime
     included: bool = True
 
 
 class ContractVersionCreate(BaseModel):
-    total_amount: MoneyVnd
-    fee_rate_bp: int | None = 500
-    review_period_seconds: int | None = 604800
-    max_revision_count: int | None = 3
-    grace_period_seconds: int | None = 259200
+    total_amount: EscrowMoneyVnd
+    fee_rate_bp: int | None = Field(default=None, ge=0, lt=10000, strict=True)
+    review_period_seconds: int | None = Field(default=None, ge=3600, le=2592000, strict=True)
+    max_revision_count: int | None = Field(default=None, ge=0, le=100, strict=True)
+    grace_period_seconds: int | None = Field(default=None, ge=0, le=2592000, strict=True)
     funding_policy: FundingPolicy
     terms_json: dict | None = None
     terms: dict | None = Field(default=None, exclude=True)
-    milestone_terms: list[MilestoneTermInput]
+    milestone_terms: list[MilestoneTermInput] = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def populate_terms_json(self) -> "ContractVersionCreate":
@@ -106,3 +107,7 @@ class ContractRead(BaseModel):
     created_at: datetime
     allocated_amount: MoneyVnd | None = None
     effective_version: ContractVersionRead | None = None
+    student_name: str | None = None
+    client_name: str | None = None
+    project_title: str | None = None
+    project_deadline: datetime | None = None

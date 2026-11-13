@@ -1,5 +1,7 @@
 # Bộ nền tảng chung cho nhóm backend Freelancer
 
+**Cập nhật local ngày 07/11/2026:** backend A–D và bộ xử lý F/payOS đã được bổ sung trên nhánh riêng. Xem [BACKEND_IMPLEMENTATION.md](BACKEND_IMPLEMENTATION.md) và [PAYOS_IMPLEMENTATION.md](PAYOS_IMPLEMENTATION.md), migration mới nhất **0004**. Phần dưới là lịch sử phát hành bộ nền. Chưa push/merge, migrate DB dự án hoặc gửi lệnh tiền thật.
+
 Phiên bản: 1.2, ngày 04/11/2026. Chủ dự án đã yêu cầu triển khai bộ dùng chung, phân công và xuất bản bộ nền trực tiếp lên main để nhóm cập nhật. **Migration chưa được áp dụng lên DB đang dùng.**
 
 Tài liệu nghiệp vụ/database nền: [FREELANCER_BACKEND_SPEC_PAYOS.md](../FREELANCER_BACKEND_SPEC_PAYOS.md), phiên bản 2.2. Các quyết định mục 19 của đặc tả đã được duyệt. Bộ này cụ thể hóa cách các thành viên làm việc cùng nhau, không tự thay thế schema đã duyệt.

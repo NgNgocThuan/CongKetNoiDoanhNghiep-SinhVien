@@ -7,7 +7,7 @@ Phân quyền:
 
 Lưu ý: route cố định (/jobs/me) phải khai báo TRƯỚC route có tham số (/jobs/{job_id}).
 """
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
 
@@ -36,7 +36,6 @@ def job_filter_params(
     industry_id: Optional[int] = None,
     job_type_id: Optional[int] = None,
     work_mode: Optional[WorkMode] = None,
-    flow: Annotated[Optional[Literal["free", "term"]], Query(description="free = tự do, term = theo đợt")] = None,
     skill_ids: Annotated[Optional[list[int]], Query(description="Lọc theo ít nhất một kỹ năng")] = None,
     salary_from: Annotated[Optional[int], Query(ge=0, description="Lương tối đa của tin >= giá trị này")] = None,
     salary_to: Annotated[Optional[int], Query(ge=0, description="Lương tối thiểu của tin <= giá trị này")] = None,
@@ -49,7 +48,6 @@ def job_filter_params(
         industry_id=industry_id,
         job_type_id=job_type_id,
         work_mode=work_mode,
-        flow=flow,
         skill_ids=skill_ids or [],
         salary_from=salary_from,
         salary_to=salary_to,

@@ -1,3 +1,4 @@
+import { freelancerRoutes } from '@/features/freelancer/routes'
 import type { RouteObject } from 'react-router-dom'
 import type { Role } from '@/features/auth'
 import {
@@ -13,17 +14,17 @@ import { studentProfileRoutes } from '@/features/student-profile/routes'
 import { studentCVRoutes } from '@/features/student-cvs/routes'
 import { studentApplicationRoutes } from '@/features/student-applications/routes'
 import { studentInvitationRoutes } from '@/features/student-invitations/routes'
-import { studentInternshipRoutes } from '@/features/student-internships/routes'
 export const featureRoutes: Record<Role, RouteObject[]> = {
+  CLIENT: [...freelancerRoutes()],
   STUDENT: [
+    ...freelancerRoutes(),
     ...studentMatchingRoutes,
     ...studentJobRoutes,
     ...studentProfileRoutes,
     ...studentCVRoutes,
     ...studentApplicationRoutes,
     ...studentInvitationRoutes,
-    ...studentInternshipRoutes,
   ],
-  COMPANY: [...companyMatchingRoutes, ...companyLiveRoutes],
-  ADMIN: [...schoolRoutes, ...administrationRoutes, ...analyticsRoutes],
+  COMPANY: [...companyMatchingRoutes, ...companyLiveRoutes, ...freelancerRoutes()],
+  ADMIN: [...schoolRoutes, ...administrationRoutes, ...analyticsRoutes, ...freelancerRoutes(true)],
 }

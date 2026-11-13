@@ -51,3 +51,7 @@ class CVRead(ORMModel):
 class CVAnalysisRead(BaseModel):
     cv_id: int
     parsed_json: dict[str, Any]
+
+
+class ConfirmCVSkills(BaseModel):
+    skills: list[str] = Field(min_length=1, max_length=100)

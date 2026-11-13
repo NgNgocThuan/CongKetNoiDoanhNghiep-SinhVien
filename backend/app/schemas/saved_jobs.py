@@ -24,7 +24,6 @@ class SavedJobItem(ORMModel):
     id: int
     title: str
     position: str
-    term_id: Optional[int] = None
     location: Optional[str] = None
     work_mode: WorkMode
     quantity: int

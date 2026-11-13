@@ -1,19 +1,22 @@
 """FastAPI router for freelance contracts and version negotiations."""
+
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, status
+from fastapi import APIRouter, Header, Query, status
 
 from app.contracts.freelancer.types import CommandContext
 from app.core.enums import UserRole
 from app.core.freelancer_enums import ActorType
 from app.dependencies import CurrentUser, DbSession
+from app.models import ClientProfile, Company, FreelanceProject, Student
 from app.models.freelancer_contracts import (
     ContractMilestoneTerm,
     ContractVersion,
     FreelanceContract,
     ProjectContractBudget,
 )
+from app.schemas.common import Page
 from app.schemas.freelance_contracts import (
     ContractMilestoneTermRead,
     ContractRead,
@@ -29,7 +32,9 @@ router = APIRouter(tags=["Freelance Contracts"])
 service = FreelanceContractService()
 
 
-def _build_context(user: CurrentUser, request_id: str | None, idempotency_key: str | None) -> CommandContext:
+def _build_context(
+    user: CurrentUser, request_id: str | None, idempotency_key: str | None
+) -> CommandContext:
     return CommandContext(
         actor_user_id=user.id,
         actor_type=ActorType.USER,
@@ -85,6 +90,14 @@ def _format_version(db: DbSession, version: ContractVersion) -> ContractVersionR
 
 
 def _format_contract(db: DbSession, contract: FreelanceContract) -> ContractRead:
+    student = db.get(Student, contract.freelancer_student_id)
+    project = db.get(FreelanceProject, contract.project_id)
+    company = db.get(Company, contract.company_id) if contract.company_id else None
+    client = (
+        db.query(ClientProfile).filter_by(user_id=contract.client_user_id).first()
+        if not company
+        else None
+    )
     budget = db.query(ProjectContractBudget).filter_by(contract_id=contract.id).first()
     eff_ver = None
     if contract.effective_version_id:
@@ -107,6 +120,10 @@ def _format_contract(db: DbSession, contract: FreelanceContract) -> ContractRead
         created_at=contract.created_at,
         allocated_amount=budget.allocated_amount if budget else None,
         effective_version=eff_ver,
+        student_name=student.full_name if student else None,
+        project_title=project.title if project else None,
+        project_deadline=project.deadline if project else None,
+        client_name=company.name if company else client.full_name if client else None,
     )
 
 
@@ -125,29 +142,37 @@ def get_contract(
     return _format_contract(db, contract)
 
 
-@router.get("/freelance-contracts/{contract_id}/versions", response_model=list[ContractVersionRead])
+@router.get("/freelance-contracts/{contract_id}/versions", response_model=Page[ContractVersionRead])
 def list_contract_versions(
     contract_id: int,
     db: DbSession,
     user: CurrentUser,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
 ):
-    versions = service.get_contract_versions(
+    versions = service.get_contract_versions_page(
         db,
         contract_id=contract_id,
         actor_user_id=user.id,
         is_admin=user.role == UserRole.ADMIN,
+        page=page,
+        size=size,
     )
-    return [_format_version(db, v) for v in versions]
+    return {**versions, "items": [_format_version(db, v) for v in versions["items"]]}
 
 
-@router.post("/freelance-contracts/{contract_id}/versions", response_model=ContractVersionRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/freelance-contracts/{contract_id}/versions",
+    response_model=ContractVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_version(
     contract_id: int,
     payload: ContractVersionCreate,
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     version = service.create_version(db, ctx=ctx, contract_id=contract_id, payload=payload)
@@ -176,11 +201,13 @@ def offer_version(
     user: CurrentUser,
     payload: ContractVersionOfferRequest | None = None,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     deadline = payload.acceptance_deadline if payload else None
-    version = service.offer_version(db, ctx=ctx, version_id=version_id, acceptance_deadline=deadline)
+    version = service.offer_version(
+        db, ctx=ctx, version_id=version_id, acceptance_deadline=deadline
+    )
     return _format_version(db, version)
 
 
@@ -191,10 +218,12 @@ def accept_version(
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
-    version = service.accept_version(db, ctx=ctx, version_id=version_id, content_hash=payload.content_hash)
+    version = service.accept_version(
+        db, ctx=ctx, version_id=version_id, content_hash=payload.content_hash
+    )
     return _format_version(db, version)
 
 
@@ -205,10 +234,12 @@ def decline_version(
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
-    version = service.decline_version(db, ctx=ctx, version_id=version_id, response_note=payload.response_note)
+    version = service.decline_version(
+        db, ctx=ctx, version_id=version_id, response_note=payload.response_note
+    )
     return _format_version(db, version)
 
 
@@ -218,7 +249,7 @@ def withdraw_version(
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     version = service.withdraw_version(db, ctx=ctx, version_id=version_id)

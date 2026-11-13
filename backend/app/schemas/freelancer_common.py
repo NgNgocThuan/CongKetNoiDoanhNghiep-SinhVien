@@ -18,6 +18,12 @@ def _money(value: int) -> int:
     return value
 
 
+def _escrow_money(value: int) -> int:
+    if value <= 2000:
+        raise ValueError("Escrow amount must be greater than 2,000 VND")
+    return value
+
+
 def _id(value: int) -> int:
     if not 0 < value <= 2**64 - 1:
         raise ValueError("ID must be a positive unsigned BIGINT")
@@ -26,6 +32,10 @@ def _id(value: int) -> int:
 
 MoneyVnd = Annotated[
     int, BeforeValidator(_integer), AfterValidator(_money),
+    PlainSerializer(str, return_type=str, when_used="json"),
+]
+EscrowMoneyVnd = Annotated[
+    int, BeforeValidator(_integer), AfterValidator(_money), AfterValidator(_escrow_money),
     PlainSerializer(str, return_type=str, when_used="json"),
 ]
 EntityId = Annotated[

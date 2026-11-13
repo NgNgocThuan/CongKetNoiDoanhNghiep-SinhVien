@@ -276,6 +276,7 @@ def test_activate_student_account(client, make_user, db):
 
 def test_register_company(client, db):
     data = {
+        "terms_acceptance": {"accepted": True, "version": "2026-11-12"},
         "email": "hr@startup.vn",
         "password": "Password@123",
         "company_name": "Startup Vietnam Tech",

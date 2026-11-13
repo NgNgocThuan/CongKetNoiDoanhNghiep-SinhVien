@@ -59,7 +59,6 @@ def list_jobs(
     *,
     status: Optional[JobStatus] = JobStatus.PENDING_APPROVAL,
     company_id: Optional[int] = None,
-    term_id: Optional[int] = None,
     q: Optional[str] = None,
 ) -> dict:
     """Danh sách tin tuyển dụng cho admin kiểm duyệt."""
@@ -69,8 +68,6 @@ def list_jobs(
         stmt = stmt.where(Job.status == status)
     if company_id is not None:
         stmt = stmt.where(Job.company_id == company_id)
-    if term_id is not None:
-        stmt = stmt.where(Job.term_id == term_id)
     if q:
         like = f"%{q.strip().lower()}%"
         stmt = stmt.where(

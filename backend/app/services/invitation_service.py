@@ -1,5 +1,6 @@
 """Nghiệp vụ: Lời mời ứng tuyển. Người phụ trách: Khôi."""
 
+import html
 from datetime import timedelta
 from typing import Optional
 
@@ -85,7 +86,7 @@ def send_invitation(
             ref_id=invitation.id,
         )
 
-        email_body = f"<p>Xin chào {student.full_name},</p><p>{content}</p>"
+        email_body = f"<p>Xin chào {html.escape(student.full_name)},</p><p>{html.escape(content)}</p>"
         queue_email(
             db,
             background_tasks,

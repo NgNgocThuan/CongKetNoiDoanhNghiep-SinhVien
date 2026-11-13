@@ -39,6 +39,9 @@ http.interceptors.request.use(config => {
 
 http.interceptors.response.use(response => response, async (error: unknown) => {
   if (!axios.isAxiosError(error)) throw toApiError(error)
+  if (error.response?.data instanceof Blob) {
+    try { error.response.data = JSON.parse(await error.response.data.text()) } catch { /* retain normalized HTTP fallback */ }
+  }
   const config = error.config as RetryConfig | undefined
   if (error.response?.status !== 401 || !config) throw toApiError(error)
   const url = config.url ?? ''

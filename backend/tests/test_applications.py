@@ -170,20 +170,6 @@ def test_apply_validates_job_cv_term_and_accepts_invitation(
     db.commit()
     _, company, term_job = make_job(db, make_user, "term", term_id=term.id)
 
-    monkeypatch.setattr(
-        application_service.internship_service,
-        "is_student_in_term",
-        lambda db, student_id, term_id: False,
-        raising=False,
-    )
-    blocked = client.post(
-        BASE,
-        json={"job_id": term_job.id, "cv_id": own_cv["id"]},
-        headers=auth_headers(user),
-    )
-    assert blocked.status_code == 400
-    assert blocked.json()["error"]["code"] == "NOT_IN_INTERNSHIP_TERM"
-
     invitation = Invitation(
         company_id=company.id,
         student_id=student.id,
@@ -192,12 +178,6 @@ def test_apply_validates_job_cv_term_and_accepts_invitation(
     )
     db.add(invitation)
     db.commit()
-    monkeypatch.setattr(
-        application_service.internship_service,
-        "is_student_in_term",
-        lambda db, student_id, term_id: True,
-        raising=False,
-    )
     accepted = client.post(
         BASE,
         json={

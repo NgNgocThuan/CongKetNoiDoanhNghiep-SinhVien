@@ -164,11 +164,16 @@ class MouAgreement(Base):
     company_signer_position: Mapped[str] = mapped_column(String(100), nullable=False)
     company_authority_file_id: Mapped[int | None] = mapped_column(ID, ForeignKey("stored_files.id", ondelete="RESTRICT"), nullable=True)
     school_authority_file_id: Mapped[int | None] = mapped_column(ID, ForeignKey("stored_files.id", ondelete="RESTRICT"), nullable=True)
+    mou_type: Mapped[str] = mapped_column(String(30), nullable=False, default="PAPER_SCAN", server_default="PAPER_SCAN")
     signature_method: Mapped[fe.MouSignatureMethod] = mapped_column(state_type(fe.MouSignatureMethod, "mou_agreements_signature_method"), nullable=False)
     signature_verification_status: Mapped[fe.SignatureVerificationStatus] = mapped_column(state_type(fe.SignatureVerificationStatus, "mou_agreements_signature_verification_status"), nullable=False, default='NOT_CHECKED', server_default='NOT_CHECKED')
     signed_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     effective_from: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     effective_until: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    sha256_hash: Mapped[str | None] = mapped_column(binary_string(64), nullable=True)
+    signer_tax_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    signer_common_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    certificate_issuer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     scope_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     status: Mapped[fe.MouStatus] = mapped_column(state_type(fe.MouStatus, "mou_agreements_status"), nullable=False, default='PENDING_REVIEW', server_default='PENDING_REVIEW')
     reviewed_by: Mapped[int | None] = mapped_column(ID, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
@@ -180,6 +185,7 @@ class MouAgreement(Base):
     __table_args__ = (
         CheckConstraint('effective_until > effective_from', name='effective_dates'),
         Index('ix_mou_agreements_company_id_status_effective_until', 'company_id', 'status', 'effective_until'),
+        Index('ix_mou_agreements_company_id_mou_type', 'company_id', 'mou_type'),
         Index('ix_mou_agreements_status_effective_until', 'status', 'effective_until'),
         Index('ix_mou_agreements_company_id', 'company_id'),
         Index('ix_mou_agreements_document_file_id', 'document_file_id'),

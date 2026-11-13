@@ -1,3 +1,5 @@
+import { AppShell } from '@/layouts/AppShell'
+import { PaymentReturn } from '@/features/freelancer/routes'
 import { lazy } from 'react'
 import { Navigate } from 'react-router-dom'
 import type { RouteObject } from 'react-router-dom'
@@ -63,6 +65,9 @@ export const routes: RouteObject[] = [
   {
     element: <RequireAuth />,
     children: [
+      { path: '/payments/return', element: <PaymentReturn /> },
+      { path: '/payments/cancel', element: <PaymentReturn /> },
+      roleRoutes('CLIENT', <AppShell role="CLIENT" />),
       roleRoutes('STUDENT', <StudentLayout />),
       roleRoutes('COMPANY', <CompanyLayout />),
       roleRoutes('ADMIN', <AdminLayout />),

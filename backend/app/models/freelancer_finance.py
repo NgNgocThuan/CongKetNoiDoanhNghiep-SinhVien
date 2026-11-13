@@ -31,7 +31,7 @@ class BankDestination(Base):
     account_fingerprint: Mapped[str] = mapped_column(binary_string(64), nullable=False)
     account_last4: Mapped[str] = mapped_column(String(4), nullable=False)
     account_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    verification_status: Mapped[fe.BankDestinationStatus] = mapped_column(state_type(fe.BankDestinationStatus, "bank_destinations_verification_status"), nullable=False, default='PENDING', server_default='PENDING')
+    verification_status: Mapped[fe.BankDestinationStatus] = mapped_column(state_type(fe.BankDestinationStatus, "bank_destinations_verification_status"), nullable=False, default='ACTIVE', server_default='ACTIVE')
     verification_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
     verified_by: Mapped[int | None] = mapped_column(ID, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
@@ -99,7 +99,7 @@ class MoneyTransfer(Base):
     payment_transaction_id: Mapped[int | None] = mapped_column(ID, ForeignKey("payment_transactions.id", ondelete="RESTRICT"), nullable=True)
     purpose: Mapped[fe.TransferPurpose] = mapped_column(state_type(fe.TransferPurpose, "money_transfers_purpose"), nullable=False)
     recipient_user_id: Mapped[int] = mapped_column(ID, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
-    destination_id: Mapped[int] = mapped_column(ID, ForeignKey("bank_destinations.id", ondelete="RESTRICT"), nullable=False)
+    destination_id: Mapped[int | None] = mapped_column(ID, ForeignKey("bank_destinations.id", ondelete="RESTRICT"), nullable=True)
     destination_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     status: Mapped[fe.TransferStatus] = mapped_column(state_type(fe.TransferStatus, "money_transfers_status"), nullable=False, default='READY', server_default='READY')
@@ -121,6 +121,7 @@ class MoneyTransfer(Base):
 
     __table_args__ = (
         CheckConstraint('amount > 0', name='amount_amount'),
+        CheckConstraint("(status = 'WAITING_BANK' AND destination_id IS NULL) OR (status <> 'WAITING_BANK' AND destination_id IS NOT NULL)", name='transfer_bank_state'),
         CheckConstraint('provider_fee_amount >= 0', name='provider_fee_amount_amount'),
         UniqueConstraint('settlement_id', 'purpose', name='uq_money_transfers_settlement_id_purpose'),
         CheckConstraint("(purpose IN ('RELEASE','REFUND') AND settlement_id IS NOT NULL AND payment_transaction_id IS NULL) OR (purpose = 'UNALLOCATED_REFUND' AND settlement_id IS NULL AND payment_transaction_id IS NOT NULL)", name='transfer_source'),

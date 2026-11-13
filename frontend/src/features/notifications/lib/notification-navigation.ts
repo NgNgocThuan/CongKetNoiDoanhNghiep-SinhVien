@@ -10,6 +10,40 @@ export function getNotificationTargetUrl(
 
   const refType = (notification.ref_type || notification.type || '').toUpperCase()
   const refId = notification.ref_id
+  if (refType === 'PAYOUT_BALANCE' && role === 'ADMIN') {
+    return '/admin/freelancer/admin/transfers'
+  }
+
+  if (refType.includes('FREELANCE_PROJECT')) {
+    if (role === 'ADMIN') return refId ? `/admin/freelancer/projects/${refId}` : '/admin/freelancer/admin/projects'
+    return refId ? `${roleHome[role]}/freelancer/projects/${refId}` : `${roleHome[role]}/freelancer/projects`
+  }
+  if (refType.includes('FREELANCE_CONTRACT')) {
+    return refId ? `${roleHome[role]}/freelancer/contracts/${refId}` : `${roleHome[role]}/freelancer/work`
+  }
+  if (refType.includes('FREELANCE_MILESTONE')) {
+    return refId ? `${roleHome[role]}/freelancer/milestones/${refId}` : `${roleHome[role]}/freelancer/work`
+  }
+  if (refType.includes('FREELANCE_SETTLEMENT')) {
+    return refId ? `${roleHome[role]}/freelancer/settlements/${refId}` : `${roleHome[role]}/freelancer/finance`
+  }
+  if (refType.includes('FREELANCE_DISPUTE')) {
+    return refId ? `${roleHome[role]}/freelancer/disputes/${refId}` : `${roleHome[role]}/freelancer/work`
+  }
+  if (refType.includes('FREELANCE_APPLICATION')) {
+    return `${roleHome[role]}/freelancer/work`
+  }
+
+  if (refType === 'BANK_DESTINATION') {
+    return role === 'ADMIN'
+      ? '/admin/freelancer/admin/banks'
+      : `${roleHome[role]}/freelancer/banks`
+  }
+  if (refType === 'BUSINESS_VERIFICATION' || refType === 'MOU_AGREEMENT') {
+    return role === 'ADMIN'
+      ? '/admin/freelancer/admin/business'
+      : `${roleHome[role]}/freelancer/onboarding`
+  }
 
   // 1. Tin tuyển dụng (Job) - Kiểm tra trước để tránh nhầm JOB_APPROVED với APPLICATION
   if (refType.startsWith('JOB') || refType.includes('_JOB') || refType === 'JOB') {
@@ -36,12 +70,6 @@ export function getNotificationTargetUrl(
   if (refType.includes('INVIT') || refType.includes('INTERVIEW')) {
     if (role === 'STUDENT') return '/student/invitations'
     if (role === 'COMPANY') return '/company/invitations'
-  }
-
-  // 5. Đợt thực tập (Term / Internship)
-  if (refType.includes('TERM') || refType.includes('INTERNSHIP')) {
-    if (role === 'STUDENT') return '/student/internships'
-    if (role === 'ADMIN') return '/admin/internships'
   }
 
   // Mặc định về trang thông báo của role

@@ -10,7 +10,6 @@ from app.schemas.students import (
     ExperienceCreate,
     ExperienceRead,
     ExperienceUpdate,
-    InternshipAssignmentRead,
     ProfileRead,
     ProfileUpdate,
     ProjectCreate,
@@ -166,12 +165,3 @@ def delete_certificate(certificate_id: int, db: DbSession, student: CurrentStude
 )
 def list_achievements(db: DbSession, student: CurrentStudent):
     return student_service.list_achievements(db, student)
-
-
-@router.get(
-    "/me/internship",
-    response_model=list[InternshipAssignmentRead],
-    summary="Xem đợt thực tập và giảng viên hướng dẫn",
-)
-def list_internships(db: DbSession, student: CurrentStudent):
-    return student_service.list_internship_assignments(db, student)

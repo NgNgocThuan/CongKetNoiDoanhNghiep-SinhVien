@@ -28,7 +28,6 @@ def list_jobs(
     pagination: Pagination,
     status: Optional[JobStatus] = JobStatus.PENDING_APPROVAL,
     company_id: Optional[int] = None,
-    term_id: Optional[int] = None,
     q: Optional[str] = None,
 ) -> dict:
     return admin_job_service.list_jobs(
@@ -36,7 +35,6 @@ def list_jobs(
         pagination,
         status=status,
         company_id=company_id,
-        term_id=term_id,
         q=q,
     )
 

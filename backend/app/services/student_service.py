@@ -14,7 +14,6 @@ from app.models import (
     StudentProfile,
     StudentProject,
     StudentSkill,
-    TermStudent,
 )
 from app.schemas.students import (
     CertificateCreate,
@@ -169,6 +168,8 @@ def create_skill(db: Session, student: Student, data: SkillCreate) -> dict:
         source=SkillSource.SELF,
     )
     db.add(item)
+    from app.services.cv_service import sync_online_skills
+    sync_online_skills(db, student.id)
     db.commit()
     stmt = (
         select(StudentSkill)
@@ -199,6 +200,8 @@ def update_skill(db: Session, student: Student, skill_id: int, data: SkillUpdate
 
 def delete_skill(db: Session, student: Student, skill_id: int) -> None:
     db.delete(_get_self_skill(db, student, skill_id))
+    from app.services.cv_service import sync_online_skills
+    sync_online_skills(db, student.id)
     db.commit()
 
 
@@ -367,13 +370,3 @@ def list_achievements(db: Session, student: Student):
     if current is None:
         raise NotFoundError("Không tìm thấy hồ sơ sinh viên")
     return current.achievements
-
-
-def list_internship_assignments(db: Session, student: Student) -> list[TermStudent]:
-    stmt = (
-        select(TermStudent)
-        .where(TermStudent.student_id == student.id)
-        .options(joinedload(TermStudent.term), joinedload(TermStudent.lecturer))
-        .order_by(TermStudent.created_at.desc(), TermStudent.id.desc())
-    )
-    return list(db.scalars(stmt).all())

@@ -120,6 +120,8 @@ class StudentAchievement(Base):
 class StudentProfile(Base):
     """Dữ liệu tự khai + cài đặt quyền riêng tư (cho gợi ý ứng viên)."""
 
+    show_cv: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+
     __tablename__ = "student_profiles"
 
     student_id: Mapped[int] = mapped_column(

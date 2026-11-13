@@ -10,13 +10,16 @@ from app.core.exceptions import BadRequestError
 from app.models import (
     Application,
     Company,
+    Dispute,
+    FreelanceProject,
     Job,
     Major,
     MatchingResult,
+    MoneyTransfer,
+    Settlement,
     Skill,
     Student,
     StudentSkill,
-    TermStudent,
 )
 from app.utils.datetime_utils import utcnow
 
@@ -36,12 +39,6 @@ def student_conditions(filters, *, dates=True):
         value = getattr(filters, key)
         if value is not None:
             conditions.append(getattr(Student, key) == value)
-    if filters.term_id is not None:
-        conditions.append(
-            Student.id.in_(
-                select(TermStudent.student_id).where(TermStudent.term_id == filters.term_id)
-            )
-        )
     if dates:
         conditions += time_conditions(Student.created_at, filters)
     return conditions
@@ -49,8 +46,6 @@ def student_conditions(filters, *, dates=True):
 
 def job_conditions(filters, *, dates=True):
     conditions = []
-    if filters.term_id is not None:
-        conditions.append(Job.term_id == filters.term_id)
     # Academic filters select jobs explicitly targeting the requested majors,
     # plus unrestricted jobs. Cohort is only meaningful for student metrics.
     if filters.faculty_id is not None or filters.major_id is not None:
@@ -95,8 +90,7 @@ def overview(db: Session, filters):
         .where(*time_conditions(Company.created_at, filters))
     )
     if (
-        filters.term_id is not None
-        or filters.faculty_id is not None
+        filters.faculty_id is not None
         or filters.major_id is not None
     ):
         company_query = company_query.where(
@@ -124,23 +118,77 @@ def overview(db: Session, filters):
     )
 
 
+def freelancer_overview(db: Session, filters):
+    """Current Freelancer workload plus realized financial results for the selected period."""
+    project_counts = db.execute(
+        select(
+            func.count(FreelanceProject.id),
+            func.sum(case((FreelanceProject.status == "PENDING_REVIEW", 1), else_=0)),
+            func.sum(
+                case(
+                    (
+                        (FreelanceProject.status == "APPROVED")
+                        & (FreelanceProject.recruitment_status == "OPEN"),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+            func.sum(case((FreelanceProject.status == "IN_PROGRESS", 1), else_=0)),
+            func.sum(
+                case(
+                    (FreelanceProject.status.in_(("COMPLETED", "CLOSED")), 1),
+                    else_=0,
+                )
+            ),
+        ).select_from(FreelanceProject)
+    ).one()
+
+    open_disputes = db.scalar(
+        select(func.count(Dispute.id)).where(
+            Dispute.status.in_(("OPEN", "EVIDENCE_COLLECTION", "UNDER_REVIEW", "ESCALATED"))
+        )
+    )
+    pending_payouts = db.scalar(
+        select(func.count(MoneyTransfer.id)).where(
+            MoneyTransfer.status.in_(("WAITING_BANK", "READY", "PROCESSING", "UNKNOWN"))
+        )
+    )
+
+    successful_releases = (
+        select(
+            func.coalesce(func.sum(Settlement.fee_amount), 0),
+            func.coalesce(func.sum(MoneyTransfer.amount), 0),
+        )
+        .select_from(MoneyTransfer)
+        .join(Settlement, Settlement.id == MoneyTransfer.settlement_id)
+        .where(
+            MoneyTransfer.purpose == "RELEASE",
+            MoneyTransfer.status == "SUCCEEDED",
+            *time_conditions(MoneyTransfer.succeeded_at, filters),
+        )
+    )
+    platform_fee_revenue, disbursed_amount = db.execute(successful_releases).one()
+
+    return {
+        "platform_fee_revenue": int(platform_fee_revenue or 0),
+        "disbursed_amount": int(disbursed_amount or 0),
+        "total_projects": int(project_counts[0] or 0),
+        "pending_review_projects": int(project_counts[1] or 0),
+        "recruiting_projects": int(project_counts[2] or 0),
+        "in_progress_projects": int(project_counts[3] or 0),
+        "completed_projects": int(project_counts[4] or 0),
+        "open_disputes": int(open_disputes or 0),
+        "pending_payouts": int(pending_payouts or 0),
+    }
+
+
 def breakdown(db: Session, filters, params, group_by):
-    if group_by not in {"major", "faculty", "cohort", "term"}:
-        raise BadRequestError("group_by phải là major, faculty, cohort hoặc term")
-    if group_by == "term":
-        column = cast(TermStudent.term_id, String)
-        stmt = select(column.label("group"), func.count(Student.id).label("count")).join(
-            TermStudent, TermStudent.student_id == Student.id
-        )
-    else:
-        column = getattr(
-            Student, {"major": "major_id", "faculty": "faculty_id", "cohort": "cohort"}[group_by]
-        )
-        column = cast(column, String)
-        stmt = select(column.label("group"), func.count(Student.id).label("count"))
+    if group_by not in {"major", "faculty", "cohort"}:
+        raise BadRequestError("group_by phải là major, faculty hoặc cohort")
+    column = cast(getattr(Student, {"major": "major_id", "faculty": "faculty_id", "cohort": "cohort"}[group_by]), String)
+    stmt = select(column.label("group"), func.count(Student.id).label("count"))
     stmt = stmt.where(*student_conditions(filters)).group_by(column).order_by(column)
-    if group_by == "term" and filters.term_id is not None:
-        stmt = stmt.where(TermStudent.term_id == filters.term_id)
     return aggregate_page(db, stmt, params)
 
 
@@ -300,43 +348,3 @@ def trends(db: Session, filters, params):
     for item in page["items"]:
         item["skills"] = by_period.get(item["period"], [])
     return page
-
-
-def flow_comparison(db: Session, filters, params):
-    flow = case((Job.term_id.is_(None), "free"), else_="term")
-    job_counts = dict(
-        db.execute(
-            select(flow, func.count(Job.id)).where(*job_conditions(filters)).group_by(flow)
-        ).all()
-    )
-    app_counts = {
-        row[0]: row[1:]
-        for row in db.execute(
-            select(
-                flow,
-                func.count(Application.id),
-                func.sum(case((Application.current_status == ApplicationStatus.HIRED, 1), else_=0)),
-            )
-            .select_from(Application)
-            .join(Student)
-            .join(Job)
-            .where(*application_conditions(filters))
-            .group_by(flow)
-        )
-    }
-    items = [
-        {
-            "flow": f,
-            "jobs": job_counts.get(f, 0),
-            "applications": app_counts.get(f, (0, 0))[0],
-            "hired": app_counts.get(f, (0, 0))[1] or 0,
-        }
-        for f in ("free", "term")
-    ]
-    return {
-        "items": items[params.offset : params.offset + params.size],
-        "total": 2,
-        "page": params.page,
-        "size": params.size,
-        "pages": (2 + params.size - 1) // params.size,
-    }

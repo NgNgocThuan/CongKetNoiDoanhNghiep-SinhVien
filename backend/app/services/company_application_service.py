@@ -1,5 +1,6 @@
 """Nghiệp vụ: Quản lý ứng viên (Kanban). Người phụ trách: Khôi."""
 
+import html
 from typing import Optional
 
 from fastapi import BackgroundTasks
@@ -152,7 +153,11 @@ def list_applications(
 def application_payload(app: Application) -> dict:
     student = app.student
     profile = student.profile
-    show_contact = profile is not None and profile.show_contact
+    show_contact = bool(profile is not None and profile.show_contact and (
+        app.interview_time is not None or app.current_status in (
+            ApplicationStatus.INTERVIEW, ApplicationStatus.OFFER, ApplicationStatus.HIRED,
+        )
+    ))
     today = utcnow().date()
     months = sum(
         max(
@@ -173,9 +178,13 @@ def application_payload(app: Application) -> dict:
         "cover_letter": app.cover_letter,
         "applied_at": app.applied_at,
         "updated_at": app.updated_at,
+        "interview_time": app.interview_time,
+        "interview_location": app.interview_location,
+        "interview_notes": app.interview_notes,
         "contact_email": (profile.contact_email or student.user.email) if show_contact else None,
         "contact_phone": (profile.contact_phone or student.phone) if show_contact else None,
         "student": {
+            "user_id": student.user_id,
             "id": student.id,
             "full_name": student.full_name,
             "gpa": student.gpa if profile is not None and profile.show_gpa else None,
@@ -199,6 +208,7 @@ def log_status_change(
     application_id: int,
     new_status: ApplicationStatus,
     note: Optional[str] = None,
+    *, interview_time=None, interview_location=None, interview_notes=None,
 ) -> dict:
     app = _get_owned_application(db, company, application_id)
     old_status = app.current_status
@@ -219,6 +229,18 @@ def log_status_change(
                 f"Không thể chuyển trạng thái từ {old_status.value} sang {new_status.value}"
             )
 
+    if new_status == ApplicationStatus.WITHDRAWN:
+        raise BadRequestError("Chỉ sinh viên có thể rút đơn ứng tuyển.")
+    if new_status == ApplicationStatus.INTERVIEW:
+        if not interview_time or not (interview_location or "").strip():
+            raise BadRequestError("Vui lòng nhập thời gian và địa điểm phỏng vấn.")
+        from datetime import timezone
+        at = interview_time.replace(tzinfo=timezone.utc) if interview_time.tzinfo is None else interview_time
+        if at <= utcnow().replace(tzinfo=timezone.utc):
+            raise BadRequestError("Thời gian phỏng vấn phải ở tương lai.")
+        app.interview_time = at.astimezone(timezone.utc).replace(tzinfo=None)
+        app.interview_location = interview_location.strip()
+        app.interview_notes = interview_notes
     app.current_status = new_status
 
     status_log = ApplicationStatusLog(
@@ -235,9 +257,22 @@ def log_status_change(
     student_user = app.student.user
     if student_user:
         title = "Cập nhật trạng thái đơn ứng tuyển"
-        content = f"Đơn ứng tuyển vào vị trí '{app.job.title}' đã chuyển sang trạng thái: {new_status.value}."
+        label = {
+            "APPLIED": "Đã ứng tuyển", "SCREENING": "Đang sàng lọc",
+            "SHORTLISTED": "Đã vào danh sách lựa chọn", "INTERVIEW": "Mời phỏng vấn",
+            "OFFER": "Đã gửi đề nghị tuyển dụng", "HIRED": "Đã tuyển",
+            "ACCEPTED": "Đã chấp nhận", "REJECTED": "Không được chọn", "WITHDRAWN": "Đã rút đơn",
+        }.get(new_status.value, new_status.value)
+        content = f"Đơn ứng tuyển vào vị trí '{app.job.title}' đã chuyển sang trạng thái: {label}."
         if note:
             content += f" Ghi chú: {note}"
+        if new_status == ApplicationStatus.INTERVIEW:
+            from zoneinfo import ZoneInfo
+
+            local_time = at.astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%H:%M ngày %d/%m/%Y")
+            content += f" Phỏng vấn: {local_time} (giờ Việt Nam) | {app.interview_location}"
+            if interview_notes:
+                content += f" Hướng dẫn phỏng vấn: {interview_notes}"
 
         create_notification(
             db,
@@ -249,7 +284,7 @@ def log_status_change(
             ref_id=app.id,
         )
 
-        email_body = f"<p>Xin chào {app.student.full_name},</p><p>{content}</p>"
+        email_body = f"<p>Xin chào {html.escape(app.student.full_name)},</p><p>{html.escape(content)}</p>"
         queue_email(
             db,
             background_tasks,

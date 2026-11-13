@@ -1196,8 +1196,10 @@ def downgrade() -> None:
         batch.drop_column('stored_file_id')
 
     with op.batch_alter_table('companies') as batch:
-        batch.drop_constraint(op.f("ck_companies_companies_business_status"), type_="check")
-        batch.drop_constraint(op.f("ck_companies_companies_operation_status"), type_="check")
+        # SQLite reflection can retain both the Enum name and the convention name.
+        for constraint in sa.inspect(bind).get_check_constraints("companies"):
+            if constraint.get("name") and any(column in constraint["sqltext"] for column in ("business_status", "operation_status")):
+                batch.drop_constraint(op.f(constraint["name"]), type_="check")
         batch.drop_constraint(op.f('fk_companies_business_verified_by_users'), type_='foreignkey')
         batch.drop_constraint(op.f('fk_companies_authorization_file_id_stored_files'), type_='foreignkey')
         batch.drop_constraint(op.f('fk_companies_suspended_by_users'), type_='foreignkey')

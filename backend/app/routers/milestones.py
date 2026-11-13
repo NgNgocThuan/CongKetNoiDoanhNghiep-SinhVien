@@ -1,4 +1,5 @@
 """FastAPI router for freelance milestones and work lifecycle."""
+
 import uuid
 from datetime import datetime, timezone
 
@@ -32,7 +33,9 @@ milestone_service = MilestoneService()
 deliverable_service = DeliverableService()
 
 
-def _build_context(user: CurrentUser, request_id: str | None, idempotency_key: str | None) -> CommandContext:
+def _build_context(
+    user: CurrentUser, request_id: str | None, idempotency_key: str | None
+) -> CommandContext:
     return CommandContext(
         actor_user_id=user.id,
         actor_type=ActorType.USER,
@@ -42,7 +45,9 @@ def _build_context(user: CurrentUser, request_id: str | None, idempotency_key: s
     )
 
 
-def _format_milestone(db: DbSession, milestone: Milestone, *, settlement_id: int | None = None) -> MilestoneRead:
+def _format_milestone(
+    db: DbSession, milestone: Milestone, *, settlement_id: int | None = None
+) -> MilestoneRead:
     eff_term = None
     if milestone.effective_terms_id:
         t = db.get(ContractMilestoneTerm, milestone.effective_terms_id)
@@ -113,12 +118,15 @@ def start_milestone(
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
     finance_port: FinancePort = Depends(get_finance_port),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     milestone = milestone_service.start_milestone(
-        db, ctx=ctx, milestone_id=milestone_id, finance_port=finance_port,
+        db,
+        ctx=ctx,
+        milestone_id=milestone_id,
+        finance_port=finance_port,
     )
     return _format_milestone(db, milestone)
 
@@ -130,7 +138,7 @@ def accept_milestone_endpoint(
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
     finance_port: FinancePort = Depends(get_finance_port),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
@@ -158,7 +166,7 @@ def request_revision_endpoint(
     db: DbSession,
     user: CurrentUser,
     x_request_id: str | None = Header(None),
-    x_idempotency_key: str | None = Header(None),
+    x_idempotency_key: str | None = Header(None, alias="Idempotency-Key", max_length=128),
 ):
     ctx = _build_context(user, x_request_id, x_idempotency_key)
     review = deliverable_service.request_revision(

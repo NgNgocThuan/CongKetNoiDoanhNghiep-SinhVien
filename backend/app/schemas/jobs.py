@@ -6,7 +6,7 @@ Phân cấp schema response (TV3 dùng JobListItem/JobRead cho "việc làm yêu
   JobRead      -> JobListItem + toàn bộ chi tiết (mô tả, yêu cầu, kỹ năng, ngành học...)
 """
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -19,6 +19,7 @@ MAX_MONEY = 2_000_000_000  # cột salary_* là INT UNSIGNED
 # ---------------------------------------------------------------- Rút gọn các bảng liên quan
 class CompanyBrief(ORMModel):
     id: int
+    user_id: int
     name: str
     logo_url: Optional[str] = None
 
@@ -72,9 +73,6 @@ class JobCreate(BaseModel):
     position: str = Field(min_length=1, max_length=255, examples=["Backend Developer"])
     job_type_id: int = Field(ge=1)
     industry_id: Optional[int] = Field(default=None, ge=1)
-    term_id: Optional[int] = Field(
-        default=None, ge=1, description="Có giá trị = tin thuộc đợt thực tập; bỏ trống = ứng tuyển tự do"
-    )
     description: str = Field(min_length=1)
     requirements: Optional[str] = None
     benefits: Optional[str] = None
@@ -113,7 +111,6 @@ class JobUpdate(BaseModel):
     position: Optional[str] = Field(default=None, min_length=1, max_length=255)
     job_type_id: Optional[int] = Field(default=None, ge=1)
     industry_id: Optional[int] = Field(default=None, ge=1)
-    term_id: Optional[int] = Field(default=None, ge=1)
     description: Optional[str] = Field(default=None, min_length=1)
     requirements: Optional[str] = None
     benefits: Optional[str] = None
@@ -152,9 +149,6 @@ class JobFilter(BaseModel):
     industry_id: Optional[int] = None
     job_type_id: Optional[int] = None
     work_mode: Optional[WorkMode] = None
-    flow: Optional[Literal["free", "term"]] = Field(
-        default=None, description="free = ứng tuyển tự do, term = theo đợt"
-    )
     skill_ids: list[int] = Field(
         default_factory=list, description="Tin yêu cầu ít nhất một trong các kỹ năng này"
     )
@@ -176,9 +170,10 @@ class JobMajorRead(ORMModel):
 
 class JobListItem(ORMModel):
     id: int
+    is_featured: bool = False
+    is_mou_partner: bool = False
     title: str
     position: str
-    term_id: Optional[int] = None
     location: Optional[str] = None
     work_mode: WorkMode
     quantity: int

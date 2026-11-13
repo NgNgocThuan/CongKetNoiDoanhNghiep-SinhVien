@@ -8,12 +8,12 @@ from tests.school_factories import domain
 BASE = "/api/v1/admin/dashboard"
 ENDPOINTS = [
     "overview",
+    "freelancer-overview",
     "breakdown",
     "top-skills",
     "skill-gap",
     "match-rate",
     "trends",
-    "flow-comparison",
 ]
 
 
@@ -42,6 +42,18 @@ def test_dashboard_aggregates_and_roles(client, db, make_user, auth_headers, end
             "applications": 1,
             "interviews": 0,
             "hired": 1,
+        }
+    elif endpoint == "freelancer-overview":
+        assert result == {
+            "platform_fee_revenue": 0,
+            "disbursed_amount": 0,
+            "total_projects": 0,
+            "pending_review_projects": 0,
+            "recruiting_projects": 0,
+            "in_progress_projects": 0,
+            "completed_projects": 0,
+            "open_disputes": 0,
+            "pending_payouts": 0,
         }
     elif endpoint == "breakdown":
         assert result["items"][0]["count"] == 1
@@ -73,10 +85,11 @@ def test_dashboard_aggregates_and_roles(client, db, make_user, auth_headers, end
 def test_dashboard_group_filters(client, db, make_user, auth_headers):
     d = domain(db, make_user)
     headers = auth_headers(d.admin)
-    for group in ("major", "faculty", "cohort", "term"):
+    for group in ("major", "faculty", "cohort"):
         response = client.get(f"{BASE}/breakdown?group_by={group}", headers=headers)
         assert response.status_code == 200, response.text
     assert client.get(f"{BASE}/breakdown?group_by=unknown", headers=headers).status_code == 422
+    assert client.get(f"{BASE}/breakdown?group_by=term", headers=headers).status_code == 422
     response = client.get(f"{BASE}/overview?major_id=999", headers=headers)
     assert response.status_code == 200, response.text
     assert response.json()["students"] == 0
@@ -90,7 +103,6 @@ def test_dashboard_pagination_and_skill_trends(client, db, make_user, auth_heade
         "skill-gap",
         "match-rate",
         "trends",
-        "flow-comparison",
     ):
         response = client.get(f"{BASE}/{endpoint}?page=1&size=1", headers=auth_headers(d.admin))
         assert response.status_code == 200, response.text

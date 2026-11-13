@@ -96,7 +96,7 @@ export default function CatalogPage() {
       <PageHeader
         eyebrow="Phân hệ quản trị"
         title="Danh mục"
-        subtitle="Dữ liệu dùng chung cho hồ sơ sinh viên, tin tuyển dụng và đợt thực tập. Danh mục không xóa hẳn mà chuyển sang ngừng hoạt động."
+        subtitle="Dữ liệu dùng chung cho hồ sơ sinh viên và tin tuyển dụng. Danh mục không xóa hẳn mà chuyển sang ngừng hoạt động."
       />
       <div className="sc-card" style={{ padding: 24 }}>
         <Tabs

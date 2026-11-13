@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Feedback } from '@/features/student-jobs/components/StudentUI'
 import { profileApi } from '../api'
 import type { Profile } from '../types'
+import { AvatarUpload } from '@/components/common/UserAvatar'
 const nullableString = z.string().max(500).nullable()
 const schema = z.object({
   avatar_url: nullableString,
@@ -29,7 +30,6 @@ const fields = [
   ['address', 'Địa chỉ'],
   ['linkedin_url', 'LinkedIn (URL)'],
   ['github_url', 'GitHub (URL)'],
-  ['avatar_url', 'Ảnh đại diện (URL)'],
 ] as const
 export function ProfileForm({ profile }: { profile: Profile }) {
   const {
@@ -55,6 +55,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       })}
     >
       <h2>Thông tin tự khai</h2>
+      <AvatarUpload />
       <div className="student-form-grid">
         {fields.map(([key, label]) => (
           <label key={key}>
@@ -81,7 +82,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           [
             'is_open_to_work',
             'Sẵn sàng tìm việc',
-            'Cho phép xuất hiện trong gợi ý ứng viên.',
+            'Doanh nghiệp đã xác minh có thể xem hồ sơ và CV mặc định của bạn trước khi mời ứng tuyển. Nếu chưa chọn CV mặc định, hệ thống dùng CV mới nhất.',
           ],
           [
             'show_gpa',

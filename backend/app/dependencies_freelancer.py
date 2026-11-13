@@ -1,4 +1,5 @@
 """New dependencies do not relax access checks on existing recruitment routes."""
+
 from typing import Annotated
 
 from fastapi import Depends
@@ -11,7 +12,12 @@ from app.models import User
 
 
 def get_onboarding_user(token: Annotated[str, Depends(oauth2_scheme)], db: DbSession) -> User:
-    payload = decode_token(token, expected_type="access", db=db)
+    try:
+        payload = decode_token(token, expected_type="access", db=db)
+    except UnauthorizedError as exc:
+        if exc.code != "TOKEN_INVALID":
+            raise
+        payload = decode_token(token, expected_type="onboarding", db=db)
     user = db.get(User, int(payload["sub"]))
     if user is None:
         raise UnauthorizedError("Account does not exist")

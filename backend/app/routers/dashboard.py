@@ -7,7 +7,7 @@ from app.schemas.common import Page
 from app.schemas.dashboard import (
     BreakdownRow,
     DashboardFilter,
-    FlowComparison,
+    FreelancerOverviewStats,
     MatchRateRow,
     OverviewStats,
     SkillGapRow,
@@ -26,7 +26,16 @@ def overview(db: DbSession, _: AdminUser, filters: Filters):
 
 
 @router.get(
-    "/breakdown", response_model=Page[BreakdownRow], summary="Thống kê theo khoa ngành khóa đợt"
+    "/freelancer-overview",
+    response_model=FreelancerOverviewStats,
+    summary="Tổng quan vận hành Freelancer",
+)
+def freelancer_overview(db: DbSession, _: AdminUser, filters: Filters):
+    return service.freelancer_overview(db, filters)
+
+
+@router.get(
+    "/breakdown", response_model=Page[BreakdownRow], summary="Thống kê theo khoa ngành khóa"
 )
 def breakdown(db: DbSession, _: AdminUser, filters: Filters, pagination: Pagination):
     return service.breakdown(db, filters, pagination, filters.group_by)
@@ -50,12 +59,3 @@ def match_rate(db: DbSession, _: AdminUser, filters: Filters, pagination: Pagina
 @router.get("/trends", response_model=Page[TrendPoint], summary="Xu hướng tuyển dụng theo ngày")
 def trends(db: DbSession, _: AdminUser, filters: Filters, pagination: Pagination):
     return service.trends(db, filters, pagination)
-
-
-@router.get(
-    "/flow-comparison",
-    response_model=Page[FlowComparison],
-    summary="So sánh tuyển tự do và theo đợt",
-)
-def flow_comparison(db: DbSession, _: AdminUser, filters: Filters, pagination: Pagination):
-    return service.flow_comparison(db, filters, pagination)

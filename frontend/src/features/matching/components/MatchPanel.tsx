@@ -18,7 +18,7 @@ export function MatchPanel({ match, title, subtitle, children, actions }: { matc
     {children}
     <div className="match-bars"><h3>Điểm thành phần</h3>{components.map(([label, score]) => <div key={label}><div><span>{label}</span><strong>{scoreLabel(score)}</strong></div>{scoreValue(score) !== null && <progress max={100} value={scoreValue(score)!} aria-label={label} />}</div>)}</div>
     <MatchSummary match={match} />
-    <p className="match-disclaimer"><Info size={17} /><span>Điểm phù hợp mang tính tham khảo, không đảm bảo kết quả tuyển dụng. Kỹ năng chưa ghi nhận không đồng nghĩa với việc ứng viên không có kỹ năng đó.</span></p>
+    <p className="match-disclaimer"><Info size={17} /><span>Chỉ những tiêu chí công việc có dữ liệu yêu cầu mới được tính điểm. Tin chưa có kỹ năng đối chiếu hoặc hồ sơ chưa khớp kỹ năng sẽ không được gợi ý. Điểm tham khảo không đảm bảo kết quả tuyển dụng.</span></p>
     <p className="match-computed">Tính lúc: {computedAtLabel(match.computed_at)}</p>{actions && <div className="match-panel__actions">{actions}</div>}
   </section>
 }

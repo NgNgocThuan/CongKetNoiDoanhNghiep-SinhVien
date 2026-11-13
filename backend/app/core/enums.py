@@ -159,3 +159,19 @@ class ReportStatus(StrEnum):
     PENDING = "PENDING"
     RESOLVED = "RESOLVED"
     REJECTED = "REJECTED"
+
+
+# ---- Nhiệm vụ 1: Xác minh doanh nghiệp 2 bước ----
+class CompanyVerificationStatus(StrEnum):
+    """Trạng thái của một lượt xác minh doanh nghiệp (bảng company_verifications)."""
+
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    NEEDS_REVISION = "NEEDS_REVISION"
+
+
+# ---- Nhiệm vụ 2: MOU hybrid ----
+class MouType(StrEnum):
+    PAPER_SCAN = "PAPER_SCAN"
+    HYBRID_DIGITAL_SIGN = "HYBRID_DIGITAL_SIGN"

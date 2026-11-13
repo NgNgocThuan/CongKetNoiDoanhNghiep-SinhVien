@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const roleSchema = z.enum(['STUDENT', 'COMPANY', 'ADMIN'])
+export const roleSchema = z.enum(['STUDENT', 'COMPANY', 'ADMIN', 'CLIENT'])
 export type Role = z.infer<typeof roleSchema>
 export const userSchema = z.object({
   id: z.number(),
@@ -24,6 +24,7 @@ export interface LoginInput {
   remember?: boolean
 }
 export interface RegisterCompanyInput {
+  terms_acceptance: { accepted: boolean; version: string }
   email: string
   password: string
   company_name: string
@@ -45,11 +46,13 @@ export interface RegisterCompanyResponse {
   message: string
 }
 export const roleHome: Record<Role, string> = {
+  CLIENT: '/client',
   STUDENT: '/student',
   COMPANY: '/company',
   ADMIN: '/admin',
 }
 export const roleLabel: Record<Role, string> = {
+  CLIENT: 'Ng\u01b0\u1eddi thu\u00ea c\u00e1 nh\u00e2n',
   STUDENT: 'Sinh viên',
   COMPANY: 'Doanh nghiệp',
   ADMIN: 'Nhà trường',

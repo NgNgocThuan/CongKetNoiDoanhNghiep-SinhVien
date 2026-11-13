@@ -15,7 +15,7 @@ from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models import CV, Application, ApplicationStatusLog, Invitation, Job, Student, User
 from app.schemas.applications import ApplicationCreate
 from app.schemas.common import PageParams
-from app.services import email_service, internship_service, notification_service
+from app.services import email_service, notification_service
 from app.utils.datetime_utils import today, utcnow
 from app.utils.file_storage import absolute_path
 from app.utils.pagination import paginate
@@ -61,7 +61,7 @@ def log_status_change(
     return log
 
 
-def _snapshot_cv(cv: CV) -> str:
+def _snapshot_cv(db: Session, cv: CV) -> str:
     relative_dir = Path("applications") / "cv-snapshots" / str(cv.student_id)
     target_dir = Path(settings.UPLOAD_DIR) / relative_dir
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -76,9 +76,10 @@ def _snapshot_cv(cv: CV) -> str:
         target = target_dir / f"{token}{source.suffix.lower()}"
         shutil.copy2(source, target)
     else:
+        from app.services.cv_service import profile_skill_names
         target = target_dir / f"{token}.json"
         target.write_text(
-            json.dumps(cv.content_json or {}, ensure_ascii=False, indent=2), encoding="utf-8"
+            json.dumps({**(cv.content_json or {}), "skills": profile_skill_names(db, cv.student_id)}, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     return (relative_dir / target.name).as_posix()
 
@@ -117,14 +118,6 @@ def apply(
     if cv is None or cv.student_id != student.id or cv.deleted_at is not None:
         raise NotFoundError("Không tìm thấy CV hợp lệ")
 
-    if job.term_id is not None and not internship_service.is_student_in_term(
-        db, student.id, job.term_id
-    ):
-        raise BadRequestError(
-            "Bạn không thuộc đợt thực tập của tin tuyển dụng này",
-            code="NOT_IN_INTERNSHIP_TERM",
-        )
-
     duplicate = db.scalar(
         select(Application.id).where(
             Application.student_id == student.id, Application.job_id == job.id
@@ -138,7 +131,7 @@ def apply(
         if data.invitation_id is not None
         else None
     )
-    snapshot_url = _snapshot_cv(cv)
+    snapshot_url = _snapshot_cv(db, cv)
     application = Application(
         student_id=student.id,
         job_id=job.id,
@@ -182,6 +175,16 @@ def apply(
         user_id=student.user_id,
         ref_type="APPLICATION",
         ref_id=application.id,
+    )
+    email_service.queue_email(
+        db, background_tasks,
+        to_email=job.company.user.email,
+        subject=f"[Student Connect] Có ứng viên mới: {job.title}",
+        body_html=(f"<p>{html.escape(student.full_name)} đã ứng tuyển vị trí "
+                   f"<strong>{html.escape(job.title)}</strong>.</p>"
+                   "<p>Vui lòng đăng nhập để xem hồ sơ và CV ứng viên.</p>"),
+        type="NEW_APPLICATION", user_id=job.company.user_id,
+        ref_type="APPLICATION", ref_id=application.id,
     )
     return application
 

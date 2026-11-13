@@ -1,5 +1,7 @@
 # Hợp đồng nội bộ giữa các module backend
 
+**Bổ sung ngày 10/11/2026:** API đăng việc và schema revision **0005** được mô tả trong [PROJECT_POSTING_0005.md](PROJECT_POSTING_0005.md). Cập nhật frontend/backend cùng phiên bản; OpenAPI snapshot đã cập nhật.
+
 Phiên bản: 1.1. DTO/ports, transaction helper, coordinator acceptance và unavailable finance đã được tạo theo contract này. Protocol không phải service nghiệp vụ hoàn chỉnh. Các entrypoint khác còn thuộc nhiệm vụ A–D/chủ dự án. Thay chữ ký cần cập nhật tài liệu và review bên gọi.
 
 ## 1. Nơi đặt các phần dùng chung

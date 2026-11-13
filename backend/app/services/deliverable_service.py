@@ -1,4 +1,5 @@
 """Deliverable service: WorkPort implementation, submissions, revisions, and acceptance (Ticket C4, C5)."""
+
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -31,6 +32,7 @@ from app.core.freelancer_enums import (
 )
 from app.models import FreelanceProject, Student
 from app.models.freelancer_contracts import (
+    ContractMilestoneTerm,
     ContractVersion,
     Deliverable,
     DeliverableFile,
@@ -57,7 +59,7 @@ def _norm_utc(dt: datetime | None) -> datetime | None:
 def _for_update(query, db: Session):
     bind = db.get_bind()
     if bind is not None and bind.dialect.name != "sqlite":
-        return query.with_for_update()
+        return query.populate_existing().with_for_update()
     return query
 
 
@@ -97,28 +99,43 @@ class DeliverableService:
 
         # Only contracted student can submit
         if ctx.actor_user_id != student.user_id:
-            raise ForbiddenError("Only the contracted student can submit deliverables", code="FORBIDDEN")
+            raise ForbiddenError(
+                "Only the contracted student can submit deliverables", code="FORBIDDEN"
+            )
 
         if contract_raw.status != ContractStatus.ACTIVE:
-            raise ConflictError("Contract must be ACTIVE to submit deliverable", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Contract must be ACTIVE to submit deliverable", code="INVALID_STATE_TRANSITION"
+            )
 
-        if milestone.status not in (MilestoneStatus.IN_PROGRESS, MilestoneStatus.REVISION_REQUESTED):
+        if milestone.status not in (
+            MilestoneStatus.IN_PROGRESS,
+            MilestoneStatus.REVISION_REQUESTED,
+        ):
             raise ConflictError(
                 "Milestone must be IN_PROGRESS or REVISION_REQUESTED to submit deliverable",
                 code="INVALID_STATE_TRANSITION",
             )
 
         # Invariant checks: holds and disputes
-        active_holds = db.query(MilestoneHold).filter(
-            MilestoneHold.milestone_id == milestone.id,
-            MilestoneHold.released_at.is_(None),
-        ).count()
+        active_holds = (
+            db.query(MilestoneHold)
+            .filter(
+                MilestoneHold.milestone_id == milestone.id,
+                MilestoneHold.released_at.is_(None),
+            )
+            .count()
+        )
         if active_holds > 0:
             raise ConflictError("Milestone has active hold or dispute", code="FUNDS_ON_HOLD")
 
-        active_disputes = db.query(ActiveMilestoneDispute).filter_by(
-            milestone_id=milestone.id,
-        ).count()
+        active_disputes = (
+            db.query(ActiveMilestoneDispute)
+            .filter_by(
+                milestone_id=milestone.id,
+            )
+            .count()
+        )
         if active_disputes > 0:
             raise ConflictError("Milestone has active hold or dispute", code="FUNDS_ON_HOLD")
 
@@ -128,7 +145,9 @@ class DeliverableService:
         clean_note = note.strip() if note else None
 
         if not f_ids and not clean_note:
-            raise UnprocessableError("Deliverable requires at least one attached file or a note", code="VALIDATION_ERROR")
+            raise UnprocessableError(
+                "Deliverable requires at least one attached file or a note", code="VALIDATION_ERROR"
+            )
 
         # Validate attached files
         for fid in f_ids:
@@ -139,12 +158,17 @@ class DeliverableService:
                 stored_file.scan_status != FileScanStatus.CLEAN
                 or stored_file.availability_status != FileAvailability.AVAILABLE
             ):
-                raise ConflictError("Attached file is not clean or available", code="VALIDATION_ERROR")
+                raise ConflictError(
+                    "Attached file is not clean or available", code="VALIDATION_ERROR"
+                )
 
         # Next submission number
-        max_sub = db.query(func.coalesce(func.max(Deliverable.submission_no), 0)).filter_by(
-            milestone_id=milestone.id
-        ).scalar() or 0
+        max_sub = (
+            db.query(func.coalesce(func.max(Deliverable.submission_no), 0))
+            .filter_by(milestone_id=milestone.id)
+            .scalar()
+            or 0
+        )
         submission_no = max_sub + 1
 
         now = _norm_utc(ctx.now_utc)
@@ -163,7 +187,16 @@ class DeliverableService:
         db.flush()
 
         # Update milestone status and review deadline
-        version = db.get(ContractVersion, contract_raw.effective_version_id)
+        term = (
+            db.get(ContractMilestoneTerm, milestone.effective_terms_id)
+            if milestone.effective_terms_id
+            else None
+        )
+        version = db.get(ContractVersion, term.contract_version_id) if term else None
+        if version is None:
+            raise ConflictError(
+                "Milestone has no effective policy snapshot", code="INVALID_STATE_TRANSITION"
+            )
         review_seconds = version.review_period_seconds if version else 604800
         review_deadline = now + timedelta(seconds=review_seconds)
 
@@ -172,12 +205,16 @@ class DeliverableService:
         milestone.review_deadline = review_deadline
 
         # Cancel any pending auto_accept jobs for milestone
-        old_jobs = db.query(ScheduledJob).filter(
-            ScheduledJob.entity_type == "milestones",
-            ScheduledJob.entity_id == milestone.id,
-            ScheduledJob.job_type == "milestone.auto_accept",
-            ScheduledJob.status == ScheduledJobStatus.PENDING,
-        ).all()
+        old_jobs = (
+            db.query(ScheduledJob)
+            .filter(
+                ScheduledJob.entity_type == "milestones",
+                ScheduledJob.entity_id == milestone.id,
+                ScheduledJob.job_type == "milestone.auto_accept",
+                ScheduledJob.status == ScheduledJobStatus.PENDING,
+            )
+            .all()
+        )
         for oj in old_jobs:
             oj.status = ScheduledJobStatus.CANCELLED
 
@@ -208,6 +245,16 @@ class DeliverableService:
                 request_id=ctx.request_id,
             )
         )
+        from app.services.freelancer_domain import notify
+
+        notify(
+            db,
+            contract_raw.client_user_id,
+            "Sinh viên đã gửi sản phẩm",
+            f"Sinh viên đã gửi lần bàn giao #{submission_no}. Hãy mở công việc để xem tệp và nghiệm thu.",
+            ref_type="FREELANCE_MILESTONE",
+            ref_id=milestone.id,
+        )
         db.flush()
 
         return deliverable
@@ -224,7 +271,11 @@ class DeliverableService:
         return run_command(
             db,
             lambda: self.submit_deliverable_in_tx(
-                db, ctx=ctx, milestone_id=milestone_id, file_ids=file_ids, note=note,
+                db,
+                ctx=ctx,
+                milestone_id=milestone_id,
+                file_ids=file_ids,
+                note=note,
             ),
         )
 
@@ -264,37 +315,65 @@ class DeliverableService:
             raise ForbiddenError("Only the contract client can request revision", code="FORBIDDEN")
 
         # Invariant checks: holds and disputes
-        active_holds = db.query(MilestoneHold).filter(
-            MilestoneHold.milestone_id == milestone.id,
-            MilestoneHold.released_at.is_(None),
-        ).count()
+        active_holds = (
+            db.query(MilestoneHold)
+            .filter(
+                MilestoneHold.milestone_id == milestone.id,
+                MilestoneHold.released_at.is_(None),
+            )
+            .count()
+        )
         if active_holds > 0:
             raise ConflictError("Milestone has active hold or dispute", code="FUNDS_ON_HOLD")
 
-        active_disputes = db.query(ActiveMilestoneDispute).filter_by(
-            milestone_id=milestone.id,
-        ).count()
+        active_disputes = (
+            db.query(ActiveMilestoneDispute)
+            .filter_by(
+                milestone_id=milestone.id,
+            )
+            .count()
+        )
         if active_disputes > 0:
             raise ConflictError("Milestone has active hold or dispute", code="FUNDS_ON_HOLD")
 
         clean_reason = reason.strip() if reason else ""
         if not clean_reason:
-            raise UnprocessableError("Reason is required to request revision", code="VALIDATION_ERROR")
+            raise UnprocessableError(
+                "Reason is required to request revision", code="VALIDATION_ERROR"
+            )
 
         if milestone.status != MilestoneStatus.SUBMITTED:
-            raise ConflictError("Milestone is not in SUBMITTED status", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Milestone is not in SUBMITTED status", code="INVALID_STATE_TRANSITION"
+            )
 
         deliverable = db.get(Deliverable, deliverable_id)
         if not deliverable or deliverable.milestone_id != milestone.id:
             raise NotFoundError("Deliverable not found", code="NOT_FOUND")
 
         # Must be latest submission
-        max_sub = db.query(func.max(Deliverable.submission_no)).filter_by(milestone_id=milestone.id).scalar()
+        max_sub = (
+            db.query(func.max(Deliverable.submission_no))
+            .filter_by(milestone_id=milestone.id)
+            .scalar()
+        )
         if deliverable.submission_no != max_sub:
-            raise ConflictError("Only the latest submitted deliverable can be reviewed", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Only the latest submitted deliverable can be reviewed",
+                code="INVALID_STATE_TRANSITION",
+            )
 
         # Check revision limit
-        version = db.get(ContractVersion, contract_raw.effective_version_id)
+        term = (
+            db.get(ContractMilestoneTerm, milestone.effective_terms_id)
+            if milestone.effective_terms_id
+            else None
+        )
+        version = db.get(ContractVersion, term.contract_version_id) if term else None
+        if version is None:
+            raise ConflictError(
+                "Milestone has no effective policy snapshot", code="INVALID_STATE_TRANSITION"
+            )
         max_revisions = version.max_revision_count if version else 3
         if milestone.revision_count >= max_revisions:
             raise ConflictError("Maximum revision count reached", code="REVISION_LIMIT_EXCEEDED")
@@ -316,12 +395,16 @@ class DeliverableService:
         milestone.review_deadline = None
 
         # Cancel auto_accept jobs
-        pending_jobs = db.query(ScheduledJob).filter(
-            ScheduledJob.entity_type == "milestones",
-            ScheduledJob.entity_id == milestone.id,
-            ScheduledJob.job_type == "milestone.auto_accept",
-            ScheduledJob.status == ScheduledJobStatus.PENDING,
-        ).all()
+        pending_jobs = (
+            db.query(ScheduledJob)
+            .filter(
+                ScheduledJob.entity_type == "milestones",
+                ScheduledJob.entity_id == milestone.id,
+                ScheduledJob.job_type == "milestone.auto_accept",
+                ScheduledJob.status == ScheduledJobStatus.PENDING,
+            )
+            .all()
+        )
         for pj in pending_jobs:
             pj.status = ScheduledJobStatus.CANCELLED
 
@@ -334,6 +417,16 @@ class DeliverableService:
                 entity_id=milestone.id,
                 request_id=ctx.request_id,
             )
+        )
+        from app.services.freelancer_domain import notify
+
+        notify(
+            db,
+            student.user_id,
+            "Người thuê yêu cầu chỉnh sửa",
+            clean_reason,
+            ref_type="FREELANCE_MILESTONE",
+            ref_id=milestone.id,
         )
         db.flush()
 
@@ -351,7 +444,11 @@ class DeliverableService:
         return run_command(
             db,
             lambda: self.request_revision_in_tx(
-                db, ctx=ctx, milestone_id=milestone_id, deliverable_id=deliverable_id, reason=reason,
+                db,
+                ctx=ctx,
+                milestone_id=milestone_id,
+                deliverable_id=deliverable_id,
+                reason=reason,
             ),
         )
 
@@ -382,6 +479,29 @@ class DeliverableService:
             .filter_by(milestone_id=milestone_id)
             .order_by(Deliverable.submission_no.asc())
             .all()
+        )
+
+    def get_deliverables_page(
+        self, db, *, milestone_id, actor_user_id, is_admin=False, page=1, size=20
+    ):
+        from sqlalchemy import select
+
+        from app.services.freelancer_domain import page as paginate
+        from app.services.freelancer_domain import party
+
+        m = db.get(Milestone, milestone_id)
+        c = db.get(FreelanceContract, m.contract_id) if m else None
+        if not c:
+            raise NotFoundError("Milestone not found")
+        party(db, c, actor_user_id, allow_admin=is_admin)
+        return paginate(
+            db,
+            select(Deliverable)
+            .where(Deliverable.milestone_id == milestone_id)
+            .order_by(Deliverable.submission_no.desc()),
+            page,
+            size,
+            project=lambda x: x,
         )
 
     def get_deliverable(
@@ -436,7 +556,9 @@ class DeliverableWorkService(WorkPort):
 
         # 1. Lock in strict order
         _for_update(db.query(FreelanceProject).filter_by(id=contract_raw.project_id), db).first()
-        contract = _for_update(db.query(FreelanceContract).filter_by(id=contract_raw.id), db).first()
+        contract = _for_update(
+            db.query(FreelanceContract).filter_by(id=contract_raw.id), db
+        ).first()
         milestone = _for_update(db.query(Milestone).filter_by(id=milestone_raw.id), db).first()
 
         student = db.get(Student, contract.freelancer_student_id)
@@ -450,32 +572,46 @@ class DeliverableWorkService(WorkPort):
             if ctx.actor_user_id not in (contract.client_user_id, student.user_id):
                 raise NotFoundError("Milestone not found", code="NOT_FOUND")
             if ctx.actor_user_id != contract.client_user_id:
-                raise ForbiddenError("Only the contract client can accept a milestone", code="FORBIDDEN")
+                raise ForbiddenError(
+                    "Only the contract client can accept a milestone", code="FORBIDDEN"
+                )
         elif source == "AUTO":
             if ctx.actor_type != ActorType.SYSTEM:
                 raise ForbiddenError("Auto acceptance requires a SYSTEM actor", code="FORBIDDEN")
             now = _norm_utc(ctx.now_utc)
             if milestone.review_deadline is None or now < milestone.review_deadline:
-                raise ConflictError("Review deadline has not passed yet", code="INVALID_STATE_TRANSITION")
+                raise ConflictError(
+                    "Review deadline has not passed yet", code="INVALID_STATE_TRANSITION"
+                )
 
         # 3. Status checks
         if contract.status != ContractStatus.ACTIVE:
             raise ConflictError("Contract is not active", code="INVALID_STATE_TRANSITION")
 
         if milestone.status != MilestoneStatus.SUBMITTED:
-            raise ConflictError("Milestone is not in SUBMITTED status", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Milestone is not in SUBMITTED status", code="INVALID_STATE_TRANSITION"
+            )
 
         # 4. Invariant checks: holds and disputes
-        active_holds = db.query(MilestoneHold).filter(
-            MilestoneHold.milestone_id == milestone.id,
-            MilestoneHold.released_at.is_(None),
-        ).count()
+        active_holds = (
+            db.query(MilestoneHold)
+            .filter(
+                MilestoneHold.milestone_id == milestone.id,
+                MilestoneHold.released_at.is_(None),
+            )
+            .count()
+        )
         if active_holds > 0:
             raise ConflictError("Milestone funds are on hold", code="FUNDS_ON_HOLD")
 
-        active_disputes = db.query(ActiveMilestoneDispute).filter_by(
-            milestone_id=milestone.id,
-        ).count()
+        active_disputes = (
+            db.query(ActiveMilestoneDispute)
+            .filter_by(
+                milestone_id=milestone.id,
+            )
+            .count()
+        )
         if active_disputes > 0:
             raise ConflictError("Milestone has active hold or dispute", code="FUNDS_ON_HOLD")
 
@@ -484,9 +620,15 @@ class DeliverableWorkService(WorkPort):
         if not deliverable or deliverable.milestone_id != milestone.id:
             raise NotFoundError("Deliverable not found", code="NOT_FOUND")
 
-        max_sub = db.query(func.max(Deliverable.submission_no)).filter_by(milestone_id=milestone.id).scalar()
+        max_sub = (
+            db.query(func.max(Deliverable.submission_no))
+            .filter_by(milestone_id=milestone.id)
+            .scalar()
+        )
         if deliverable.submission_no != max_sub:
-            raise ConflictError("Only the latest deliverable can be accepted", code="INVALID_STATE_TRANSITION")
+            raise ConflictError(
+                "Only the latest deliverable can be accepted", code="INVALID_STATE_TRANSITION"
+            )
 
         # 6. Record review
         now = _norm_utc(ctx.now_utc)
@@ -494,7 +636,9 @@ class DeliverableWorkService(WorkPort):
             milestone_id=milestone.id,
             deliverable_id=deliverable.id,
             reviewed_by=ctx.actor_user_id if source == "MANUAL" else None,
-            action=MilestoneReviewAction.ACCEPT if source == "MANUAL" else MilestoneReviewAction.AUTO_ACCEPT,
+            action=MilestoneReviewAction.ACCEPT
+            if source == "MANUAL"
+            else MilestoneReviewAction.AUTO_ACCEPT,
             reviewed_at=now,
         )
         db.add(review)
@@ -503,17 +647,23 @@ class DeliverableWorkService(WorkPort):
         # 7. Update milestone state
         milestone.status = MilestoneStatus.ACCEPTED
         milestone.accepted_at = now
-        milestone.acceptance_source = AcceptanceSource.MANUAL if source == "MANUAL" else AcceptanceSource.AUTO
+        milestone.acceptance_source = (
+            AcceptanceSource.MANUAL if source == "MANUAL" else AcceptanceSource.AUTO
+        )
         milestone.review_deadline = None
         db.flush()
 
         # 8. Manage auto_accept scheduled job
-        jobs = db.query(ScheduledJob).filter(
-            ScheduledJob.entity_type == "milestones",
-            ScheduledJob.entity_id == milestone.id,
-            ScheduledJob.job_type == "milestone.auto_accept",
-            ScheduledJob.status == ScheduledJobStatus.PENDING,
-        ).all()
+        jobs = (
+            db.query(ScheduledJob)
+            .filter(
+                ScheduledJob.entity_type == "milestones",
+                ScheduledJob.entity_id == milestone.id,
+                ScheduledJob.job_type == "milestone.auto_accept",
+                ScheduledJob.status == ScheduledJobStatus.PENDING,
+            )
+            .all()
+        )
         for j in jobs:
             if ctx.job_key and j.job_key == ctx.job_key:
                 j.status = ScheduledJobStatus.SUCCEEDED
@@ -531,6 +681,16 @@ class DeliverableWorkService(WorkPort):
                 entity_id=milestone.id,
                 request_id=ctx.request_id,
             )
+        )
+        from app.services.freelancer_domain import notify
+
+        notify(
+            db,
+            student.user_id,
+            "Sản phẩm đã được nghiệm thu",
+            "Người thuê đã nghiệm thu sản phẩm. Hệ thống đang xử lý quyết toán và giải ngân.",
+            ref_type="FREELANCE_MILESTONE",
+            ref_id=milestone.id,
         )
         db.flush()
 
@@ -581,13 +741,18 @@ def accept_milestone_command(
     """Atomic acceptance entrypoint supporting CommandRequest idempotency replay in a single transaction."""
     # Check permissions upfront before executing or reading replay cache to maintain zero-leak invariants
     if not automatic and ctx.actor_type == ActorType.USER and ctx.actor_user_id is not None:
-        _assert_milestone_accept_permission(db, milestone_id=milestone_id, actor_user_id=ctx.actor_user_id)
+        _assert_milestone_accept_permission(
+            db, milestone_id=milestone_id, actor_user_id=ctx.actor_user_id
+        )
 
     finance = finance_port or get_finance_port()
     work = DeliverableWorkService()
     req_hash = sha256_json({"milestone_id": milestone_id, "deliverable_id": deliverable_id})
 
     def operation() -> SettlementRef:
+        from app.services.freelancer_domain import milestone_scope
+
+        milestone_scope(db, milestone_id, ctx.actor_user_id, internal=automatic)
         # 1. Check idempotency replay inside tx under lock
         if ctx.actor_type == ActorType.USER and ctx.idempotency_key:
             existing = _for_update(
@@ -607,7 +772,9 @@ def accept_milestone_command(
                         kind=SettlementKind(data["kind"]),
                         status=SettlementStatus(data["status"]),
                     )
-                raise ConflictError("Idempotency key reused with different payload", code="IDEMPOTENCY_CONFLICT")
+                raise ConflictError(
+                    "Idempotency key reused with different payload", code="IDEMPOTENCY_CONFLICT"
+                )
 
         # 2. Execute work & finance in tx
         source = "AUTO" if automatic else "MANUAL"
@@ -636,8 +803,12 @@ def accept_milestone_command(
                 response_json={
                     "settlement_id": settlement_ref.settlement_id,
                     "milestone_id": settlement_ref.milestone_id,
-                    "kind": settlement_ref.kind.value if hasattr(settlement_ref.kind, "value") else str(settlement_ref.kind),
-                    "status": settlement_ref.status.value if hasattr(settlement_ref.status, "value") else str(settlement_ref.status),
+                    "kind": settlement_ref.kind.value
+                    if hasattr(settlement_ref.kind, "value")
+                    else str(settlement_ref.kind),
+                    "status": settlement_ref.status.value
+                    if hasattr(settlement_ref.status, "value")
+                    else str(settlement_ref.status),
                 },
                 completed_at=_norm_utc(ctx.now_utc),
             )

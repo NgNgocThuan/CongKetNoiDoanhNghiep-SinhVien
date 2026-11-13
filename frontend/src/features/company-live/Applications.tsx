@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { UserAvatar } from '@/components/common/UserAvatar'
 import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/common/PageHeader'
 import {
   CatalogSelect,
@@ -23,6 +24,8 @@ import { Dialog } from '@/components/ui/Dialog'
 import { http } from '@/lib/http'
 import { downloadFile } from '@/utils/download'
 import { statusLabel } from '@/features/administration/status'
+import { toast } from '@/lib/toast'
+import { errorText } from '@/features/freelancer/messages'
 import type { Page } from '@/types/api'
 
 interface Application {
@@ -32,8 +35,11 @@ interface Application {
   contact_email: string | null
   contact_phone: string | null
   cover_letter: string | null
+  interview_time?: string | null
+  interview_location?: string | null
   cv_download_url: string
   student: {
+    user_id: number
     full_name: string
     gpa: number | null
     skills: string[]
@@ -77,14 +83,23 @@ function ApplicationDrawer({
     queryFn: () => getData<Application>('/company/applications/' + id),
   })
   const update = useMutation({
-    mutationFn: (values: Row) =>
-      http.put('/company/applications/' + id + '/status', {
+    mutationFn: async (values: Row) => {
+      const payload = {
         status: next,
         note: values.note || null,
-      }),
+        interview_time: values.interview_time ? new Date(String(values.interview_time)).toISOString() : undefined,
+        interview_location: values.interview_location || undefined,
+        interview_notes: values.note || undefined,
+      }
+      return (await http.patch('/company/applications/' + id + '/status', payload)).data
+    },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['company-applications'] })
+      toast.success('Đã cập nhật trạng thái ứng viên!')
       setNext('')
+    },
+    onError: (err: unknown) => {
+      toast.error(errorText(err), 'Thất bại')
     },
   })
   const download = useMutation({
@@ -102,6 +117,7 @@ function ApplicationDrawer({
       <DataResult query={query}>
         {(data) => (
           <>
+            <UserAvatar userId={data.student.user_id} name={data.student.full_name} size={56} />
             <h3>{data.student.full_name}</h3>
             <dl className="ws-detail">
               <div>
@@ -132,6 +148,7 @@ function ApplicationDrawer({
             </Button>
             <Notice error={download.error} />
             <h3>Trạng thái: {statusLabel(data.current_status)}</h3>
+            {data.interview_time && <p>Lịch phỏng vấn: {new Date(data.interview_time.endsWith('Z') ? data.interview_time : data.interview_time + 'Z').toLocaleString('vi-VN')} · {data.interview_location}</p>}
             <div className="ws-actions">
               {(transitions[data.current_status] || []).map((status) => (
                 <Button
@@ -151,19 +168,41 @@ function ApplicationDrawer({
                 </p>
                 <FieldsForm
                   key={next}
-                  fields={[
-                    {
-                      name: 'note',
-                      label: ['INTERVIEW', 'OFFER'].includes(next)
-                        ? 'Ghi chú / lịch hẹn / liên kết phỏng vấn'
-                        : 'Ghi chú',
-                      type: 'textarea',
-                      maxLength: 500,
-                    },
-                  ]}
+                  fields={
+                    next === 'INTERVIEW'
+                      ? [
+                          {
+                            name: 'interview_time',
+                            label: 'Thời gian phỏng vấn (Ngày giờ) *',
+                            type: 'datetime-local',
+                            required: true,
+                          },
+                          {
+                            name: 'interview_location',
+                            label: 'Địa điểm / Link phòng họp online (Google Meet, Teams, phòng họp) *',
+                            type: 'text',
+                            required: true,
+                            maxLength: 255,
+                          },
+                          {
+                            name: 'note',
+                            label: 'Ghi chú / Dặn dò ứng viên (nội dung phỏng vấn, hồ sơ mang theo)',
+                            type: 'textarea',
+                            maxLength: 500,
+                          },
+                        ]
+                      : [
+                          {
+                            name: 'note',
+                            label: next === 'OFFER' ? 'Nội dung đề nghị tiếp nhận / thông báo trúng tuyển' : 'Ghi chú',
+                            type: 'textarea',
+                            maxLength: 500,
+                          },
+                        ]
+                  }
                   submit={(v) => update.mutate(v)}
                   pending={update.isPending}
-                  error={update.error}
+                  error={update.error instanceof Error ? update.error : null}
                   label="Xác nhận chuyển trạng thái"
                 />
               </>
@@ -219,6 +258,7 @@ function KanbanColumn({
               .flatMap((p) => p.items)
               .map((item) => (
                 <article key={item.id} className="ws-card">
+                  <UserAvatar userId={item.student.user_id} name={item.student.full_name} />
                   <strong>{item.student.full_name}</strong>
                   <p>GPA: {item.student.gpa ?? 'Không chia sẻ'}</p>
                   <Button
@@ -409,7 +449,7 @@ export default function CompanyApplicationsPage() {
                     {
                       key: 'student',
                       label: 'Sinh viên',
-                      render: (r) => r.student.full_name,
+                      render: (r) => <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><UserAvatar userId={r.student.user_id} name={r.student.full_name} />{r.student.full_name}</span>,
                     },
                     {
                       key: 'gpa',
@@ -455,54 +495,6 @@ export default function CompanyApplicationsPage() {
       {open && (
         <ApplicationDrawer key={open} id={open} onClose={() => setOpen(null)} />
       )}
-    </div>
-  )
-}
-export function EvaluationPage() {
-  const { resultId } = useParams()
-  const mutation = useMutation({
-    mutationFn: (values: Row) =>
-      http.put('/internship-terms/results/' + resultId + '/evaluation', {
-        evaluation: values.evaluation,
-        score: Number(values.score),
-      }),
-  })
-  return (
-    <div className="workspace">
-      <PageHeader
-        title={'Đánh giá thực tập #' + resultId}
-        description="Nhập kết quả thực tập theo mã do nhà trường cung cấp."
-      />
-      <Panel title="Đánh giá doanh nghiệp">
-        <FieldsForm
-          fields={[
-            {
-              name: 'evaluation',
-              label: 'Nhận xét',
-              type: 'textarea',
-              required: true,
-              maxLength: 5000,
-            },
-            {
-              name: 'score',
-              label: 'Điểm (0–10)',
-              type: 'number',
-              min: 0,
-              max: 10,
-              step: '0.1',
-              required: true,
-            },
-          ]}
-          submit={(v) => mutation.mutate(v)}
-          pending={mutation.isPending}
-          error={mutation.error}
-        />
-        <Notice
-          success={
-            mutation.isSuccess ? 'Đã gửi đánh giá đến nhà trường.' : undefined
-          }
-        />
-      </Panel>
     </div>
   )
 }

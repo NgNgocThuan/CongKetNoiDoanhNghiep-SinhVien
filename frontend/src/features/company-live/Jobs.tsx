@@ -24,7 +24,6 @@ import type { Page } from '@/types/api'
 const numberFields = [
   'job_type_id',
   'industry_id',
-  'term_id',
   'quantity',
   'salary_min',
   'salary_max',
@@ -88,12 +87,6 @@ function JobEditorForm({
         value: i.id,
         label: i.name,
       })),
-    },
-    {
-      name: 'term_id',
-      label: 'Mã đợt thực tập (để trống = tuyển tự do)',
-      type: 'number',
-      min: 1,
     },
     {
       name: 'quantity',

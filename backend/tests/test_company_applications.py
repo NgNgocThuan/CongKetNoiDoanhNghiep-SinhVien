@@ -300,7 +300,7 @@ def test_detail_shows_contact_when_allowed(
 ):
     company_user, company = make_company()
     _, student = make_student(open=True, show_contact=True)
-    application = make_application(student, make_job(company))
+    application = make_application(student, make_job(company), status=ApplicationStatus.INTERVIEW)
 
     body = client.get(f"{APP_URL}/{application.id}", headers=auth_headers(company_user)).json()
     assert body["contact_email"] == "lienhe@test.com"
@@ -433,3 +433,19 @@ def test_student_declines_invitation(
     invitation = db.get(Invitation, created["id"])
     db.refresh(invitation)
     assert invitation.status == InvitationStatus.DECLINED and invitation.responded_at is not None
+
+
+def test_interview_requires_schedule_and_persists_contact_gate(client, db, make_company, make_student, make_job, make_application, auth_headers):
+    user, company = make_company()
+    _, student = make_student(open=True, show_contact=True)
+    application = make_application(student, make_job(company), status=ApplicationStatus.SHORTLISTED)
+    url = f"{APP_URL}/{application.id}"
+    headers = auth_headers(user)
+    assert client.get(url, headers=headers).json()["contact_email"] is None
+    assert client.patch(url + "/status", headers=headers, json={"status": "INTERVIEW"}).status_code == 400
+    when = (datetime.utcnow() + timedelta(days=2)).isoformat() + "Z"
+    response = client.patch(url + "/status", headers=headers, json={"status": "INTERVIEW", "interview_time": when, "interview_location": "Meeting room", "note": "Interview invitation"})
+    assert response.status_code == 200, response.text
+    assert response.json()["interview_time"]
+    assert response.json()["interview_location"] == "Meeting room"
+    assert response.json()["contact_email"] == "lienhe@test.com"

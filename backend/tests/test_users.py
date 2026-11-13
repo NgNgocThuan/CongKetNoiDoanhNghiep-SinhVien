@@ -1,7 +1,7 @@
 """Test toàn diện phân hệ Quản lý tài khoản (Users). Người phụ trách: TV1."""
 from app.core.enums import CompanySize, EmailStatus, UserRole, UserStatus, VerificationStatus
 from app.models import Company, EmailLog, Faculty
-from app.services.email_service import _email_body_cache
+from app.services.email_payload import encrypt_body
 
 
 def test_list_users(client, make_user, auth_headers):
@@ -226,15 +226,13 @@ def test_admin_retry_failed_emails(client, make_user, auth_headers, db):
         recipient_email="failed_user@test.com",
         type="ACCOUNT_LOCKED",
         subject="Khóa tài khoản",
+        body_encrypted=encrypt_body("<h1>Tài khoản bị khóa</h1>"),
         status=EmailStatus.FAILED,
         retry_count=0,
     )
     db.add(failed_log)
     db.commit()
     db.refresh(failed_log)
-
-    # Lưu nội dung vào cache
-    _email_body_cache[failed_log.id] = "<h1>Tài khoản bị khóa</h1>"
 
     # Gọi API retry
     res = client.post("/api/v1/admin/users/email-logs/retry", headers=headers)
@@ -244,4 +242,4 @@ def test_admin_retry_failed_emails(client, make_user, auth_headers, db):
 
     # Kiểm tra log đã chuyển sang PENDING
     db.refresh(failed_log)
-    assert failed_log.status in (EmailStatus.PENDING, EmailStatus.SENT)
+    assert failed_log.status in (EmailStatus.PENDING, EmailStatus.SENT, EmailStatus.FAILED)

@@ -11,7 +11,6 @@ from app.schemas.common import ORMModel
 class AdminJobRead(ORMModel):
     id: int
     company_id: int
-    term_id: Optional[int] = None
     title: str
     position: str
     job_type_id: int

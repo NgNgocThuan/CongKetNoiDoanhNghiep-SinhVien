@@ -16,7 +16,7 @@ export interface Job {
   id: number; title: string; position: string; location: string | null
   work_mode: 'ONSITE' | 'REMOTE' | 'HYBRID'; quantity: number
   salary_min: number | null; salary_max: number | null; is_salary_negotiable: boolean
-  deadline: string; status: string; term_id: number | null
+  deadline: string; status: string
   company: { id: number; name: string; logo_url: string | null }
   job_type: { id: number; name: string; code: string }
 }

@@ -31,7 +31,6 @@ from app.models import (
     Student,
     TermStudent,
 )
-from app.schemas.common import PageParams
 from app.services import job_service
 from app.utils.datetime_utils import today, utcnow
 
@@ -72,11 +71,13 @@ def make_company(db, make_user):
     def _make(status: VerificationStatus = VerificationStatus.APPROVED):
         counter["n"] += 1
         user = make_user(UserRole.COMPANY)
+        user.email_verified_at = utcnow()
         company = Company(
             user_id=user.id,
             name=f"Công ty {counter['n']}",
             tax_code=f"020000000{counter['n']}",
             verification_status=status,
+            business_status="VERIFIED" if status == VerificationStatus.APPROVED else "UNVERIFIED",
         )
         db.add(company)
         db.commit()
@@ -218,7 +219,7 @@ def test_unapproved_company_cannot_create_job(client, catalog, make_company, aut
     user, _ = make_company(VerificationStatus.PENDING)
     response = client.post(JOBS, json=job_payload(catalog), headers=auth_headers(user))
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "COMPANY_NOT_APPROVED"
+    assert response.json()["error"]["code"] == "COMPANY_NOT_ELIGIBLE"
 
 
 def test_only_company_can_create_job(client, catalog, make_student, auth_headers):
@@ -240,7 +241,7 @@ def test_create_job_validation(client, catalog, make_company, auth_headers):
         client.post(JOBS, json=job_payload(catalog, skills=[{"skill_id": 9999}]), headers=headers).status_code == 400
     )
     assert client.post(JOBS, json=job_payload(catalog, major_ids=[9999]), headers=headers).status_code == 400
-    assert client.post(JOBS, json=job_payload(catalog, term_id=9999), headers=headers).status_code == 400
+    assert "term_id" not in client.get("/api/v1/openapi.json").json()["components"]["schemas"]["JobCreate"]["properties"]
     duplicated = [{"skill_id": catalog.python.id}, {"skill_id": catalog.python.id}]
     assert client.post(JOBS, json=job_payload(catalog, skills=duplicated), headers=headers).status_code == 422
 
@@ -362,7 +363,7 @@ def test_search_returns_only_approved_and_unexpired(client, make_company, make_s
     assert {"items", "total", "page", "size", "pages"} <= set(body)
 
 
-def test_term_job_hidden_from_students_outside_term(
+def test_legacy_term_metadata_does_not_restrict_job_access(
     client, db, make_company, make_student, make_term, make_job, auth_headers
 ):
     _, company = make_company()
@@ -378,16 +379,16 @@ def test_term_job_hidden_from_students_outside_term(
         return {item["title"] for item in response.json()["items"]}
 
     assert titles(member_user) == {"Tin thuộc đợt", "Tin tự do"}
-    assert titles(outsider_user) == {"Tin tự do"}
-    assert titles(member_user, flow="term") == {"Tin thuộc đợt"}
-    assert titles(outsider_user, flow="term") == set()
-    assert titles(member_user, flow="free") == {"Tin tự do"}
+    assert titles(outsider_user) == {"Tin thuộc đợt", "Tin tự do"}
+    assert titles(member_user, flow="term") == {"Tin thuộc đợt", "Tin tự do"}
+    assert titles(outsider_user, flow="term") == {"Tin thuộc đợt", "Tin tự do"}
+    assert titles(member_user, flow="free") == {"Tin thuộc đợt", "Tin tự do"}
 
     # Xem chi tiết: sinh viên ngoài đợt nhận 404 và không bị ghi lượt xem
-    assert client.get(f"{JOBS}/{term_job.id}", headers=auth_headers(outsider_user)).status_code == 404
+    assert client.get(f"{JOBS}/{term_job.id}", headers=auth_headers(outsider_user)).status_code == 200
     assert client.get(f"{JOBS}/{term_job.id}", headers=auth_headers(member_user)).status_code == 200
     db.refresh(term_job)
-    assert term_job.view_count == 1
+    assert term_job.view_count == 2
 
 
 def test_search_filters(client, catalog, make_company, make_student, make_job, auth_headers):
@@ -560,15 +561,4 @@ def test_expire_overdue_jobs(db, make_company, make_job):
     assert job_service.expire_overdue_jobs(db) == 0
 
 
-def test_list_jobs_by_term(db, make_company, make_term, make_job):
-    _, company = make_company()
-    term = make_term()
-    make_job(company, term_id=term.id)
-    make_job(company, term_id=term.id, status=JobStatus.DRAFT)
-    make_job(company)
 
-    page = job_service.list_jobs_by_term(db, term.id, PageParams(page=1, size=20))
-    assert page["total"] == 2
-    params = PageParams(page=1, size=20)
-    approved_only = job_service.list_jobs_by_term(db, term.id, params, status=JobStatus.APPROVED)
-    assert approved_only["total"] == 1

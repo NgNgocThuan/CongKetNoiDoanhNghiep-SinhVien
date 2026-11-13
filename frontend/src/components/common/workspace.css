@@ -3,9 +3,11 @@
   gap: 24px;
   min-width: 0;
 }
+
 .dialog--wide {
-  width: min(760px, calc(100vw - 32px));
+  width: min(780px, calc(100vw - 32px));
 }
+
 .ws-panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -13,7 +15,9 @@
   padding: 24px;
   box-shadow: var(--shadow);
   min-width: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
 .ws-panel-heading {
   display: flex;
   align-items: center;
@@ -21,50 +25,80 @@
   gap: 16px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
 }
+
 .ws-panel h2 {
   font-size: 18px;
+  font-weight: 700;
   margin: 0;
   color: var(--ink);
+  letter-spacing: -0.02em;
 }
+
 .ws-form,
 .ws-filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
+
 .ws-filters {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   align-items: end;
+  background: #f8fafc;
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  margin-bottom: 20px;
 }
+
 .ws-form label,
 .ws-filters label {
   display: grid;
-  gap: 7px;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
 }
+
 .ws-form input,
 .ws-form textarea,
 .ws-form select,
 .ws-filters input,
 .ws-filters select {
   width: 100%;
-  padding: 10px 12px;
-  background: white;
-  border: 1px solid #cdd8e6;
+  padding: 9px 12px;
+  background: #ffffff;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   color: var(--ink);
   font: inherit;
+  font-size: 13.5px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+.ws-form input:focus,
+.ws-form textarea:focus,
+.ws-form select:focus,
+.ws-filters input:focus,
+.ws-filters select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
 .ws-form input[type='checkbox'] {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
 }
+
 .ws-wide {
-  grid-column: 1/-1;
+  grid-column: 1 / -1;
 }
+
 .ws-form-fields {
   display: contents;
   border: 0;
@@ -72,147 +106,217 @@
   margin: 0;
   min-width: 0;
 }
+
 .ws-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
+
 .ws-table {
   overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
 }
+
 .ws-table table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 14px;
+  font-size: 13.5px;
 }
+
 .ws-table th {
-  background: var(--canvas);
+  background: #f8fafc;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
+  border-bottom: 1px solid var(--line);
 }
+
 .ws-table td,
 .ws-table th {
-  padding: 14px 12px;
-  border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
 }
+
+.ws-table tr:hover td {
+  background: #f8fafc;
+}
+
+.ws-table tr:last-child td {
+  border-bottom: 0;
+}
+
 .ws-error {
   color: var(--danger);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 4px 0 0;
 }
+
 .ws-success {
   color: var(--success);
+  font-size: 13px;
+  font-weight: 500;
+  margin: 4px 0 0;
 }
+
 .ws-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
+
 .ws-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 18px;
 }
+
 .ws-card {
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: white;
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.16s ease;
 }
+
+.ws-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
 .ws-card h3 {
-  font-size: 17px;
-  margin: 8px 0;
+  font-size: 16px;
+  font-weight: 650;
+  margin: 6px 0;
+  color: var(--ink);
 }
+
 .ws-card p {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
 }
+
 .ws-card strong.ws-number {
   display: block;
-  font-size: 30px;
-  color: var(--accent);
+  font-size: 28px;
+  font-weight: 750;
+  color: var(--accent, var(--brand));
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
+
 .ws-detail {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
+
 .ws-detail dt {
   color: var(--muted);
   font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
+
 .ws-detail dd {
-  margin: 5px 0 0;
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--ink);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+  line-height: 1.5;
 }
+
 .ws-timeline {
   border-left: 2px solid var(--line);
   padding-left: 20px;
   display: grid;
   gap: 18px;
   list-style: none;
+  margin: 0;
 }
+
 .ws-bar {
   height: 8px;
-  border-radius: 6px;
+  border-radius: 9999px;
   background: var(--soft);
   overflow: hidden;
 }
+
 .ws-bar span {
   display: block;
   height: 100%;
-  background: var(--accent);
+  background: var(--accent, var(--brand));
+  border-radius: 9999px;
 }
+
 .ws-chart {
   display: grid;
   gap: 14px;
   margin-bottom: 24px;
 }
+
 .ws-chart-row {
   display: grid;
   gap: 7px;
   font-size: 13px;
 }
+
 .ws-chart-label {
   display: flex;
   justify-content: space-between;
   gap: 12px;
 }
+
 .ws-preline {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
 .ws-kanban {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 270px;
+  grid-auto-columns: 280px;
   gap: 16px;
   overflow-x: auto;
   padding-bottom: 12px;
 }
+
 .ws-kanban-column {
-  background: var(--canvas);
+  background: #f8fafc;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: var(--radius);
+  padding: 16px;
   display: grid;
   align-content: start;
   gap: 12px;
 }
-@media (max-width: 700px) {
+
+@media (max-width: 760px) {
   .ws-grid,
   .ws-form,
   .ws-detail {
     grid-template-columns: 1fr;
   }
   .ws-panel {
-    padding: 16px;
+    padding: 18px;
   }
   .ws-filters {
     grid-template-columns: 1fr;
+    padding: 14px;
   }
 }

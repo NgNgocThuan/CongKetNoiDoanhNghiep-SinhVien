@@ -5,12 +5,14 @@ import { X } from 'lucide-react'
 import type { Role } from '@/features/auth'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
+import { ToastContainer } from '@/components/common/ToastContainer'
 
 export function AppShell({ role }: { role: Role }) {
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
   useEffect(() => { setOpen(false) }, [pathname])
-  return <div className="app-shell" data-role={role}>
+  return <div className={`app-shell ${pathname.includes('/freelancer') ? 'fl-shell' : ''}`} data-role={role}>
+    <ToastContainer />
     <a href="#main-content" className="skip-link">Đến nội dung chính</a>
     <aside className="desktop-sidebar"><Sidebar role={role} /></aside>
     <Dialog.Root open={open} onOpenChange={setOpen}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="mobile-sidebar" aria-describedby={undefined}><Dialog.Title className="sr-only">Điều hướng</Dialog.Title><Dialog.Close className="icon-button mobile-sidebar__close" aria-label="Đóng điều hướng"><X size={20} /></Dialog.Close><Sidebar role={role} onNavigate={() => setOpen(false)} /></Dialog.Content></Dialog.Portal></Dialog.Root>

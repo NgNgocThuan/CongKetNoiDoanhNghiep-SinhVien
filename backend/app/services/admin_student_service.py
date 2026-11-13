@@ -14,6 +14,7 @@ Quy ước (xem catalog_service.py): nhận db: Session đầu tiên; lỗi nghi
 app/core/exceptions.py; service tự commit; không import app.routers.
 """
 
+import html
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -192,12 +193,12 @@ def update_academic_data(db: Session, student_id: int, data: StudentAcademicUpda
 # ---------------------------------------------------------------- Cấp tài khoản / email kích hoạt
 def _activation_email_html(student: Student, link: str) -> str:
     return (
-        f"<p>Chào {student.full_name},</p>"
+        f"<p>Chào {html.escape(student.full_name)},</p>"
         f"<p>Nhà trường đã tạo tài khoản cho bạn trên hệ thống kết nối doanh nghiệp - sinh viên "
-        f"(mã sinh viên: <b>{student.student_code}</b>).</p>"
-        f'<p>Vui lòng <a href="{link}">bấm vào đây để kích hoạt tài khoản và đặt mật khẩu</a>. '
+        f"(mã sinh viên: <b>{html.escape(student.student_code)}</b>).</p>"
+        f'<p>Vui lòng <a href="{html.escape(link)}">bấm vào đây để kích hoạt tài khoản và đặt mật khẩu</a>. '
         f"Liên kết có hiệu lực {ACTIVATION_TOKEN_EXPIRE_DAYS} ngày.</p>"
-        f"<p>Nếu không bấm được, hãy sao chép địa chỉ sau vào trình duyệt: {link}</p>"
+        f"<p>Nếu không bấm được, hãy sao chép địa chỉ sau vào trình duyệt: {html.escape(link)}</p>"
     )
 
 
@@ -228,6 +229,7 @@ def _send_activation(db: Session, background_tasks: BackgroundTasks, student: St
         user_id=student.user_id,
         ref_type="STUDENT",
         ref_id=student.id,
+        expires_at=utcnow() + timedelta(days=ACTIVATION_TOKEN_EXPIRE_DAYS),
     )
 
 

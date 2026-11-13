@@ -21,6 +21,7 @@ import {
 import { authApi } from '../api/auth.api'
 import { useAuth, roleHome } from '@/features/auth'
 import { toApiError } from '@/lib/api-error'
+import { AvatarUpload } from '@/components/common/UserAvatar'
 
 interface PasswordPageProps {
   mode: 'activate' | 'reset' | 'change'
@@ -137,6 +138,7 @@ export default function PasswordPage({ mode }: PasswordPageProps) {
 
   return (
     <div className={isChange ? 'w-full max-w-2xl mx-auto py-6' : 'min-h-screen bg-[#FAF8FF] text-[#131B2E] flex flex-col justify-between'}>
+      {isChange && <AvatarUpload />}
       {/* Header cho trang công khai (activate & reset) */}
       {!isChange && (
         <header className="bg-white border-b border-[#E2E8F0] sticky top-0 z-50 px-6 lg:px-12 py-3.5 flex items-center justify-between shadow-xs">

@@ -70,7 +70,7 @@ export default function LoginPage() {
       })
       const home = roleHome[user.role]
       const from: unknown = (location.state as { from?: unknown } | null)?.from
-      const target = typeof from === 'string' && (from === home || from.startsWith(home + '/')) ? from : home
+      const target = typeof from === 'string' && (from === home || from.startsWith(home + '/') || /^\/payments\/(return|cancel)(\?|$)/.test(from)) ? from : home
       navigate(target, { replace: true })
     } catch (err: unknown) {
       const apiErr = toApiError(err)
@@ -394,6 +394,7 @@ export default function LoginPage() {
                   Đăng ký tài khoản Doanh nghiệp <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </p>
+              <p className="text-xs mt-3"><Link to="/register-client" className="font-bold text-[#006A63]">Đăng ký người thuê cá nhân</Link> · <Link to="/onboarding" className="font-bold text-[#006A63]">Hoàn thiện hồ sơ doanh nghiệp chờ duyệt</Link></p>
               <p className="text-[11px] text-gray-400 mt-2 mb-0">
                 * Sinh viên và Giảng viên vui lòng đăng nhập trực tiếp bằng tài khoản định danh do Nhà trường cấp.
               </p>

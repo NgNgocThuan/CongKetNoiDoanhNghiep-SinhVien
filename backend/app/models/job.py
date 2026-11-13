@@ -65,6 +65,10 @@ class Job(TimestampMixin, Base):
     status: Mapped[JobStatus] = mapped_column(
         db_enum(JobStatus), nullable=False, default=JobStatus.DRAFT, server_default=JobStatus.DRAFT.value
     )
+    # Nhiệm vụ 3: tin của Đối tác MOU được auto-approve và ghim lên đầu danh sách công khai.
+    is_featured: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     approved_by: Mapped[Optional[int]] = fk("users.id", ondelete="SET NULL", nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     reject_reason: Mapped[Optional[str]] = mapped_column(String(500))
@@ -82,12 +86,24 @@ class Job(TimestampMixin, Base):
     majors: Mapped[list["JobMajor"]] = relationship(back_populates="job", cascade="all, delete-orphan")
     applications: Mapped[list["Application"]] = relationship(back_populates="job")
 
+    @property
+    def is_mou_partner(self) -> bool:
+        from sqlalchemy.orm import object_session
+
+        from app.services.freelancer_accounts.eligibility_service import company_has_valid_mou
+        from app.utils.datetime_utils import utcnow
+        db = object_session(self)
+        return bool(db and self.company.business_status == "VERIFIED"
+                    and self.company.operation_status == "ENABLED"
+                    and company_has_valid_mou(db, self.company_id, utcnow()))
+
     __table_args__ = (
         Index("idx_jobs_company", "company_id"),
         Index("idx_jobs_term", "term_id"),
         Index("idx_jobs_status_deadline", "status", "deadline"),
         Index("idx_jobs_type", "job_type_id"),
         Index("idx_jobs_industry", "industry_id"),
+        Index("ix_jobs_is_featured_status", "is_featured", "status"),
         CheckConstraint(
             "salary_min IS NULL OR salary_max IS NULL OR salary_min <= salary_max", name="salary_range"
         ),

@@ -7,7 +7,7 @@ import pytest
 from openpyxl import Workbook
 
 from app.core.config import settings
-from app.models import CV, Application, InternshipTerm, Job, Student, StudentExperience, TermStudent
+from app.models import CV, Application, Job, Student, StudentExperience
 from tests.school_factories import domain
 
 
@@ -88,27 +88,6 @@ def test_required_update_fields_reject_null(client, db, make_user, auth_headers,
         url, headers, data = f"/api/v1/cvs/{d.cv.id}", auth_headers(d.student_user), {"title": None}
     result = client.put(url, headers=headers, json=data)
     assert result.status_code == 422, result.text
-
-
-def test_term_jobs_hide_expired_for_student(client, db, make_user, auth_headers):
-    d = domain(db, make_user)
-    term = InternshipTerm(
-        name="Term",
-        semester="1",
-        academic_year="2026",
-        start_date=date(2026, 1, 1),
-        end_date=date(2027, 1, 1),
-        created_by=d.admin.id,
-    )
-    db.add(term)
-    db.flush()
-    db.add(TermStudent(term_id=term.id, student_id=d.student.id))
-    d.job.term_id = term.id
-    d.job.deadline = date(2000, 1, 1)
-    db.commit()
-    url = f"/api/v1/internship-terms/{term.id}/jobs"
-    assert client.get(url, headers=auth_headers(d.student_user)).json()["total"] == 0
-    assert client.get(url, headers=auth_headers(d.admin)).json()["total"] == 1
 
 
 def test_employer_privacy_is_checked_in_list_detail_and_filter(client, db, make_user, auth_headers):
@@ -272,40 +251,19 @@ def test_end_to_end_activation_moderation_invitation_hiring_and_result(
         "/auth/register-company",
         201,
         json={
-            "email": "company-e2e@test.com",
+            "terms_acceptance": {"accepted": True, "version": "2026-11-12"},
+        "email": "company-e2e@test.com",
             "password": "Password@123",
             "company_name": "E2E Ltd",
-            "tax_code": "E2E123",
+            "tax_code": "0101234567",
         },
     ).json()
-    request("POST", f"/admin/companies/{company['company_id']}/approve", headers=admin)
+    from tests.company_verification_factory import approve_submitted_company
+    approve_submitted_company(client, db, company['company_id'], admin)
     company_token = request(
         "POST", "/auth/login", json={"email": "company-e2e@test.com", "password": "Password@123"}
     ).json()["access_token"]
     company_headers = {"Authorization": "Bearer " + company_token}
-    term = request(
-        "POST",
-        "/internship-terms",
-        201,
-        headers=admin,
-        json={
-            "name": "E2E",
-            "semester": "1",
-            "academic_year": "2026",
-            "start_date": "2026-01-01",
-            "end_date": "2030-01-01",
-        },
-    ).json()
-    tid = term["id"]
-    request(
-        "POST",
-        f"/internship-terms/{tid}/students",
-        201,
-        headers=admin,
-        json={"student_ids": [student.id]},
-    )
-    for status in ("OPEN", "ONGOING"):
-        request("POST", f"/internship-terms/{tid}/status", headers=admin, json={"status": status})
     job = request(
         "POST",
         "/jobs",
@@ -317,7 +275,6 @@ def test_end_to_end_activation_moderation_invitation_hiring_and_result(
             "job_type_id": d.job_type.id,
             "description": "Python",
             "deadline": "2030-01-01",
-            "term_id": tid,
             "skills": [{"skill_id": d.skill.id, "is_required": True}],
         },
     ).json()
@@ -326,7 +283,7 @@ def test_end_to_end_activation_moderation_invitation_hiring_and_result(
     request("POST", f"/admin/jobs/{jid}/approve", headers=admin)
     request("GET", f"/matching/jobs/{jid}/score", headers=student_headers)
     candidates = request("GET", f"/matching/jobs/{jid}/candidates", headers=company_headers).json()
-    assert candidates["items"][0]["student_id"] == student.id
+    assert any(candidate["student_id"] == student.id for candidate in candidates["items"])
     invitation = request(
         "POST",
         "/invitations",
@@ -357,26 +314,10 @@ def test_end_to_end_activation_moderation_invitation_hiring_and_result(
             "PUT",
             f"/company/applications/{aid}/status",
             headers=company_headers,
-            json={"status": status, "note": "E2E"},
+            json={"status": status, "note": "E2E", **({"interview_time": "2030-01-01T09:00:00Z", "interview_location": "Office"} if status == "INTERVIEW" else {})},
         )
     logs = request("GET", f"/company/applications/{aid}/history", headers=company_headers).json()
     assert len(logs) == 6 and logs[0]["old_status"] is None
-    rid = request("GET", f"/internship-terms/{tid}/results", headers=admin).json()["items"][0]["id"]
-    request(
-        "PUT",
-        f"/internship-terms/results/{rid}/evaluation",
-        headers=company_headers,
-        json={"evaluation": "Good", "score": 9},
-    )
-    request(
-        "PUT",
-        f"/internship-terms/results/{rid}/lecturer-review",
-        headers=admin,
-        json={"comment": "Good", "score": 9},
-    )
-    request(
-        "POST", f"/internship-terms/results/{rid}/confirm", headers=admin, json={"result": "PASSED"}
-    )
     assert request("GET", "/admin/dashboard/overview", headers=admin).json()["hired"] == 1
     assert request("GET", "/admin/exports/applications.xlsx", headers=admin).content.startswith(
         b"PK"
